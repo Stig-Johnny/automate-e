@@ -19,8 +19,8 @@ const memory = await createMemory();
 const agent = createAgent(character, memory);
 
 client.once('ready', () => {
-  console.log(`[Book-E] Logged in as ${client.user.tag}`);
-  console.log(`[Book-E] Listening on channels: ${character.discord.channels.join(', ')}`);
+  console.log(`[Automate-E] Logged in as ${client.user.tag}`);
+  console.log(`[Automate-E] Listening on channels: ${character.discord.channels.join(', ')}`);
 });
 
 client.on('messageCreate', async (message) => {
@@ -62,12 +62,12 @@ client.on('messageCreate', async (message) => {
     // Reply in thread
     await thread.send(response);
   } catch (error) {
-    console.error('[Book-E] Error processing message:', error);
+    console.error('[Automate-E] Error processing message:', error);
     try {
       const thread = message.thread || await message.startThread({ name: 'Error' });
       await thread.send('Beklager, noe gikk galt. Prøv igjen.');
     } catch (replyError) {
-      console.error('[Book-E] Failed to send error reply:', replyError);
+      console.error('[Automate-E] Failed to send error reply:', replyError);
     }
   }
 });

@@ -40,7 +40,7 @@ export async function createMemory() {
 
   // If no database configured, use in-memory fallback
   if (!connectionString) {
-    console.warn('[Book-E] No DATABASE_URL — using in-memory storage (data lost on restart)');
+    console.warn('[Automate-E] No DATABASE_URL — using in-memory storage (data lost on restart)');
     return createInMemoryStore();
   }
 
@@ -48,9 +48,9 @@ export async function createMemory() {
   try {
     pool = new pg.Pool({ connectionString });
     await pool.query(SCHEMA);
-    console.log('[Book-E] Postgres memory initialized');
+    console.log('[Automate-E] Postgres memory initialized');
   } catch (error) {
-    console.warn('[Book-E] Postgres connection failed, falling back to in-memory:', error.message);
+    console.warn('[Automate-E] Postgres connection failed, falling back to in-memory:', error.message);
     return createInMemoryStore();
   }
 
