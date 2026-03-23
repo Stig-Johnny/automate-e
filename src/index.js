@@ -2,6 +2,7 @@ import { Client, GatewayIntentBits, Partials, ChannelType } from 'discord.js';
 import { loadCharacter } from './character.js';
 import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
+import { createDashboard } from './dashboard/server.js';
 
 const character = loadCharacter();
 
@@ -18,35 +19,37 @@ const client = new Client({
 
 const memory = await createMemory();
 const agent = createAgent(character, memory);
+const dashboard = createDashboard(character, memory);
 
 client.once('ready', () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);
   console.log(`[Automate-E] Listening on channels: ${character.discord.channels.join(', ')}`);
   console.log(`[Automate-E] DMs: enabled`);
+  dashboard.addLog('info', `Logged in as ${client.user.tag}`);
 });
 
 client.on('messageCreate', async (message) => {
-  // Ignore own messages always
   if (message.author.id === client.user.id) return;
 
-  // Allow configured bots, ignore all other bots
   const allowedBots = character.discord?.allowBots || [];
   if (message.author.bot && !allowedBots.includes(message.author.id)) return;
 
   const isDM = message.channel.type === ChannelType.DM;
 
   if (!isDM) {
-    // Guild message — only respond in configured channels (including threads)
     const baseChannel = message.channel.isThread?.() ? message.channel.parent : message.channel;
     if (!baseChannel) return;
     const channelName = `#${baseChannel.name}`;
     if (!character.discord.channels.includes(channelName)) return;
   }
 
+  const threadId = isDM ? `dm-${message.author.id}` : null;
+  dashboard.addLog('info', `Message from ${message.author.displayName || message.author.username}: ${message.content.slice(0, 80)}`);
+
   try {
     if (isDM) {
-      // DMs: reply directly (no threads in DMs)
       await message.channel.sendTyping();
+      dashboard.updateSession(`dm-${message.author.id}`, { user: message.author.username, type: 'dm' });
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -54,16 +57,12 @@ client.on('messageCreate', async (message) => {
         channelId: message.channel.id,
         threadId: `dm-${message.author.id}`,
         attachments: [...message.attachments.values()].map(a => ({
-          name: a.name,
-          url: a.url,
-          contentType: a.contentType,
-          size: a.size,
+          name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      });
+      }, dashboard);
 
       await message.reply(response);
     } else {
-      // Guild: create thread per document
       const thread = message.hasThread
         ? message.thread
         : await message.startThread({
@@ -72,6 +71,7 @@ client.on('messageCreate', async (message) => {
           });
 
       await thread.sendTyping();
+      dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -79,17 +79,16 @@ client.on('messageCreate', async (message) => {
         channelId: message.channel.id,
         threadId: thread.id,
         attachments: [...message.attachments.values()].map(a => ({
-          name: a.name,
-          url: a.url,
-          contentType: a.contentType,
-          size: a.size,
+          name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      });
+      }, dashboard);
 
       await thread.send(response);
     }
+    dashboard.addLog('info', `Replied to ${message.author.displayName || message.author.username}`);
   } catch (error) {
     console.error('[Automate-E] Error processing message:', error);
+    dashboard.addLog('error', `Error: ${error.message}`);
     try {
       await message.reply('Beklager, noe gikk galt. Prøv igjen.');
     } catch (replyError) {

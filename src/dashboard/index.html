@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automate-E Dashboard</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; }
+  .header { background: #161b22; padding: 16px 24px; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 12px; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .status { font-size: 12px; color: #7ee787; background: #1a2e1a; padding: 4px 8px; border-radius: 12px; }
+  .header .agent-name { color: #58a6ff; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+  .card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+  .card-header { padding: 12px 16px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 14px; color: #8b949e; }
+  .card-body { padding: 16px; max-height: 400px; overflow-y: auto; }
+  .card-body.logs { font-family: 'SF Mono', Consolas, monospace; font-size: 12px; line-height: 1.6; }
+  .log-entry { padding: 2px 0; border-bottom: 1px solid #21262d; }
+  .log-entry .time { color: #484f58; margin-right: 8px; }
+  .log-entry .level-info { color: #58a6ff; }
+  .log-entry .level-warn { color: #d29922; }
+  .log-entry .level-error { color: #f85149; }
+  .tool-entry { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+  .tool-name { color: #d2a8ff; font-family: monospace; }
+  .tool-ok { color: #7ee787; }
+  .tool-fail { color: #f85149; }
+  .tool-ms { color: #484f58; }
+  .session-entry { padding: 8px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+  .session-id { color: #58a6ff; font-family: monospace; font-size: 11px; }
+  .session-count { color: #7ee787; }
+  .stat { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #21262d; }
+  .stat-label { color: #8b949e; }
+  .stat-value { font-weight: 600; }
+  .full-width { grid-column: 1 / -1; }
+  .empty { color: #484f58; font-style: italic; padding: 12px; }
+  .ws-status { font-size: 11px; padding: 2px 6px; border-radius: 8px; }
+  .ws-connected { color: #7ee787; background: #1a2e1a; }
+  .ws-disconnected { color: #f85149; background: #2e1a1a; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Automate-E</h1>
+  <span class="agent-name" id="agent-name">Loading...</span>
+  <span class="status" id="uptime">--</span>
+  <span class="ws-status ws-disconnected" id="ws-status">disconnected</span>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-header">Agent Info</div>
+    <div class="card-body" id="info">
+      <div class="empty">Connecting...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Active Sessions</div>
+    <div class="card-body" id="sessions">
+      <div class="empty">No active sessions</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Recent Tool Calls</div>
+    <div class="card-body" id="tools">
+      <div class="empty">No tool calls yet</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">Stats</div>
+    <div class="card-body" id="stats">
+      <div class="empty">Loading...</div>
+    </div>
+  </div>
+
+  <div class="card full-width">
+    <div class="card-header">Live Logs</div>
+    <div class="card-body logs" id="logs">
+      <div class="empty">Waiting for logs...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const wsUrl = `ws://${location.host}`;
+let ws;
+let toolCallCount = 0;
+let toolErrorCount = 0;
+
+function connect() {
+  ws = new WebSocket(wsUrl);
+  document.getElementById('ws-status').textContent = 'connecting...';
+  document.getElementById('ws-status').className = 'ws-status ws-disconnected';
+
+  ws.onopen = () => {
+    document.getElementById('ws-status').textContent = 'connected';
+    document.getElementById('ws-status').className = 'ws-status ws-connected';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('ws-status').textContent = 'disconnected';
+    document.getElementById('ws-status').className = 'ws-status ws-disconnected';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'init') renderInit(msg.data);
+    if (msg.type === 'log') appendLog(msg.data);
+    if (msg.type === 'toolCall') appendToolCall(msg.data);
+    if (msg.type === 'session') updateSession(msg.data);
+  };
+}
+
+function renderInit(data) {
+  document.getElementById('agent-name').textContent = data.character?.name || 'Unknown';
+  document.getElementById('uptime').textContent = formatUptime(data.uptime);
+
+  // Info
+  document.getElementById('info').innerHTML = `
+    <div class="stat"><span class="stat-label">Name</span><span class="stat-value">${data.character?.name || '-'}</span></div>
+    <div class="stat"><span class="stat-label">Bio</span><span class="stat-value">${data.character?.bio || '-'}</span></div>
+    <div class="stat"><span class="stat-label">Memory</span><span class="stat-value">${data.memoryType || '-'}</span></div>
+  `;
+
+  // Sessions
+  const sessions = Object.entries(data.sessions || {});
+  if (sessions.length) {
+    document.getElementById('sessions').innerHTML = sessions.map(([id, s]) =>
+      `<div class="session-entry"><span class="session-id">${id.slice(0,12)}</span> — <span class="session-count">${s.messageCount} msgs</span></div>`
+    ).join('');
+  }
+
+  // Tools
+  if (data.toolCalls?.length) {
+    document.getElementById('tools').innerHTML = '';
+    data.toolCalls.forEach(appendToolCall);
+  }
+}
+
+function appendLog(entry) {
+  const el = document.getElementById('logs');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+  const levelClass = `level-${entry.level || 'info'}`;
+  el.innerHTML += `<div class="log-entry"><span class="time">${entry.timestamp?.slice(11,19) || ''}</span><span class="${levelClass}">[${entry.level || 'info'}]</span> ${escapeHtml(entry.message)}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendToolCall(entry) {
+  const el = document.getElementById('tools');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+  const statusClass = entry.status === 'ok' ? 'tool-ok' : 'tool-fail';
+  toolCallCount++;
+  if (entry.status !== 'ok') toolErrorCount++;
+  el.innerHTML = `<div class="tool-entry"><span class="tool-name">${entry.name}</span><span class="${statusClass}">${entry.status}</span><span class="tool-ms">${entry.latencyMs || '-'}ms</span><span class="time" style="color:#484f58">${entry.timestamp?.slice(11,19) || ''}</span></div>` + el.innerHTML;
+  updateStats();
+}
+
+function updateSession(data) {
+  const el = document.getElementById('sessions');
+  if (el.querySelector('.empty')) el.innerHTML = '';
+  // Simple: just re-render
+  const existing = el.querySelector(`[data-thread="${data.threadId}"]`);
+  const html = `<div class="session-entry" data-thread="${data.threadId}"><span class="session-id">${data.threadId?.slice(0,12)}</span> — <span class="session-count">${data.messageCount} msgs</span></div>`;
+  if (existing) existing.outerHTML = html;
+  else el.innerHTML = html + el.innerHTML;
+}
+
+function updateStats() {
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><span class="stat-label">Tool calls</span><span class="stat-value">${toolCallCount}</span></div>
+    <div class="stat"><span class="stat-label">Errors</span><span class="stat-value" style="color:${toolErrorCount ? '#f85149' : '#7ee787'}">${toolErrorCount}</span></div>
+    <div class="stat"><span class="stat-label">Success rate</span><span class="stat-value">${toolCallCount ? Math.round((1 - toolErrorCount/toolCallCount) * 100) : 0}%</span></div>
+  `;
+}
+
+function formatUptime(seconds) {
+  if (!seconds) return '--';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+function escapeHtml(str) {
+  return str?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '';
+}
+
+// Refresh uptime every 10s
+setInterval(async () => {
+  try {
+    const res = await fetch('/api/state');
+    const data = await res.json();
+    document.getElementById('uptime').textContent = formatUptime(data.uptime);
+  } catch {}
+}, 10000);
+
+connect();
+</script>
+</body>
+</html>
