@@ -1,49 +1,70 @@
-# OpenClaw
+# Automate-E
 
-Kubernetes-native AI agent runtime for Discord.
+> *The last employee you'll ever hire.*
+
+Kubernetes-native AI agent runtime for Discord. Define an agent in YAML — personality, tools, memory. Deploy with Helm. It scales.
 
 ## What
 
-OpenClaw runs AI agents on Kubernetes that talk to users on Discord. Agents have persistent personality, long-term memory, and call tools via HTTP APIs. Agents scale horizontally — pods can restart, move, and auto-scale without losing state.
+Automate-E runs AI agents on Kubernetes that talk to users on Discord. Agents have:
 
-## Why
-
-Existing agent frameworks (ElizaOS, Mastra, LangGraph) are single-process runtimes. They work on a laptop but break on Kubernetes where pods are ephemeral. OpenClaw is built for k8s from day one.
+- **Persistent personality** — character files define who the agent is
+- **Long-term memory** — conversations, facts, and patterns in Postgres
+- **Tool use** — agents call your HTTP APIs via LLM function calling
+- **Horizontal scaling** — gateway receives events, workers process them, KEDA auto-scales
+- **Pod resilience** — all state in Postgres + Redis, pods restart without losing anything
 
 ## Architecture
 
 ```
-Discord ──webhook──> Gateway Pod (1 replica, lightweight)
-                          │
-                     Queue (Redis/Postgres)
-                          │
-                    ┌─────┼─────┐
-                    ▼     ▼     ▼
-               Worker   Worker  Worker   ◀── HPA auto-scales
-                    │     │     │
-                    ▼     ▼     ▼
-               Postgres (memory, state)
-               External APIs (tools)
+Discord ──websocket──> Gateway (StatefulSet, 1 shard/pod)
+                            │
+                       BullMQ (Redis)
+                            │
+                      ┌─────┼─────┐
+                      ▼     ▼     ▼
+                 Worker  Worker  Worker   ◀── KEDA auto-scales
+                      │     │     │
+                      ▼     ▼     ▼
+                 Postgres (memory)
+                 Your APIs (tools)
 ```
 
-- **Gateway**: Receives Discord events, queues them. No LLM calls. ~32MB RAM.
-- **Workers**: Stateless. Pick up events, run LLM with tools, write reply to queue. Scale with HPA.
-- **Memory**: All state in Postgres. Conversations, user facts, learned patterns. Survives pod restarts.
-- **Tools**: HTTP endpoints defined as schemas. Agent decides which to call via function calling.
+## Quick Start
 
-## Key Principles
+```yaml
+# book-e.yaml — an AI accountant
+name: Book-E
+personality: |
+  Norwegian accounting assistant. Precise with numbers.
+  Processes receipts, registers invoices, answers questions.
+discord:
+  channels: ["#invoices"]
+tools:
+  - url: http://accountant-api:8080
+    endpoints:
+      - POST /receipt/attach
+      - POST /invoice/register
+      - GET /folio/balance
+llm:
+  primary: gemini-2.5-flash
+  fallback: claude-haiku
+```
 
-1. **Pods are ephemeral** — all state in Postgres/Redis, never in-process
-2. **Secret isolation** — agent has no backend secrets, only Discord token + API URL + LLM key
-3. **Character as config** — personality defined in YAML, deployed via GitOps
-4. **Tools as HTTP** — agents call typed HTTP endpoints, not raw code
-5. **Horizontal scaling** — add workers, not bigger pods
+```bash
+helm install book-e automate-e/agent -f book-e.yaml
+```
 
 ## Status
 
-**Phase 1 (now):** Simple single-replica bot for [AI Accountant](https://github.com/Stig-Johnny/ai-accountant). discord.js + Claude SDK + Postgres.
+**Phase 1** (in progress): Simple single-replica bot for [AI Accountant](https://github.com/Stig-Johnny/ai-accountant).
 
-**Phase 2 (planned):** Gateway + worker split, multi-replica, Helm chart, character YAML, HPA.
+**Phase 2** (planned): Gateway + worker split, BullMQ, KEDA auto-scaling, Helm chart.
+
+## Docs
+
+- [Architecture](docs/architecture.md) — system design, memory model, scaling
+- [Research](docs/research.md) — competitive analysis of 35+ products
 
 ## License
 
