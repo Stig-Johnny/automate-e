@@ -18,6 +18,7 @@ spec:
       containers:
         - name: book-e
           image: ghcr.io/stig-johnny/automate-e:latest
+          imagePullPolicy: Always
           env:
             - name: DISCORD_BOT_TOKEN
               valueFrom:

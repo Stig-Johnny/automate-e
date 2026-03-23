@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS patterns (
 CREATE INDEX IF NOT EXISTS idx_conversations_thread ON conversations(thread_id);
 CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);
 CREATE INDEX IF NOT EXISTS idx_facts_user ON facts(user_id);
-CREATE INDEX IF NOT EXISTS idx_patterns_merchant ON patterns(merchant);
+-- idx_patterns_merchant not needed: UNIQUE constraint on merchant already creates an index
 `;
 
 export async function createMemory() {
@@ -44,16 +44,20 @@ export async function createMemory() {
     return createInMemoryStore();
   }
 
-  const pool = new pg.Pool({ connectionString });
-
-  // Initialize schema
-  await pool.query(SCHEMA);
-  console.log('[Book-E] Postgres memory initialized');
+  let pool;
+  try {
+    pool = new pg.Pool({ connectionString });
+    await pool.query(SCHEMA);
+    console.log('[Book-E] Postgres memory initialized');
+  } catch (error) {
+    console.warn('[Book-E] Postgres connection failed, falling back to in-memory:', error.message);
+    return createInMemoryStore();
+  }
 
   return {
     async getConversation(threadId, limit = 20) {
       const result = await pool.query(
-        'SELECT role, content FROM conversations WHERE thread_id = $1 ORDER BY created_at DESC LIMIT $2',
+        'SELECT role, content FROM conversations WHERE thread_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2',
         [threadId, limit]
       );
       return result.rows.reverse();

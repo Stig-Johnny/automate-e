@@ -43,7 +43,7 @@ export function createAgent(character, memory) {
         const toolResults = [];
         for (const block of response.content) {
           if (block.type === 'tool_use') {
-            console.log(`[Book-E] Tool call: ${block.name}`, JSON.stringify(block.input));
+            console.log(`[Book-E] Tool call: ${block.name}`);
             const result = await executeTool(block.name, block.input, character);
             toolResults.push({
               type: 'tool_result',
@@ -147,8 +147,11 @@ async function callApi(baseUrl, method, path, input) {
   }
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, options);
     const data = await response.text();
+    if (!response.ok) {
+      return { status: response.status, error: data };
+    }
     return { status: response.status, data };
   } catch (error) {
     return { status: 500, error: error.message };
@@ -159,7 +162,11 @@ function formatUserMessage(message, context) {
   let content = message;
   if (context.attachments.length > 0) {
     const attachmentInfo = context.attachments
-      .map(a => `[Attachment: ${a.name} (${a.contentType}, ${Math.round(a.size / 1024)}KB)]`)
+      .map(a => {
+        const sizeKb = Math.round(a.size / 1024);
+        const urlPart = a.url ? `, URL: ${a.url}` : '';
+        return `[Attachment: ${a.name} (${a.contentType}, ${sizeKb}KB${urlPart})]`;
+      })
       .join('\n');
     content = `${message}\n\n${attachmentInfo}`;
   }

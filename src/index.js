@@ -27,8 +27,10 @@ client.on('messageCreate', async (message) => {
   // Ignore own messages and other bots
   if (message.author.bot) return;
 
-  // Only respond in configured channels
-  const channelName = `#${message.channel.name}`;
+  // Only respond in configured channels (including threads whose parent is configured)
+  const baseChannel = message.channel.isThread?.() ? message.channel.parent : message.channel;
+  if (!baseChannel) return;
+  const channelName = `#${baseChannel.name}`;
   if (!character.discord.channels.includes(channelName)) return;
 
   try {
