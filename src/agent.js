@@ -7,7 +7,7 @@ export function createAgent(character, memory) {
   const systemPrompt = buildSystemPrompt(character);
 
   return {
-    async process(message, context) {
+    async process(message, context, dashboard) {
       // Load conversation history
       const history = await memory.getConversation(context.threadId, 20);
       const facts = await memory.getFacts(context.userId);
@@ -44,7 +44,10 @@ export function createAgent(character, memory) {
         for (const block of response.content) {
           if (block.type === 'tool_use') {
             console.log(`[Automate-E] Tool call: ${block.name}`);
+            const start = Date.now();
             const result = await executeTool(block.name, block.input, character);
+            const latency = Date.now() - start;
+            if (dashboard) dashboard.addToolCall(block.name, result.error ? 'error' : 'ok', latency);
             toolResults.push({
               type: 'tool_result',
               tool_use_id: block.id,
