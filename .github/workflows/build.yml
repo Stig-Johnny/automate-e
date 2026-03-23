@@ -1,12 +1,15 @@
 name: Build & Push
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - 'src/**'
       - 'package.json'
+      - 'package-lock.json'
       - 'Dockerfile'
+      - '.github/workflows/build.yml'
 
 env:
   REGISTRY: ghcr.io
