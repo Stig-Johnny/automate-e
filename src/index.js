@@ -26,7 +26,12 @@ client.once('ready', () => {
 });
 
 client.on('messageCreate', async (message) => {
-  if (message.author.bot) return;
+  // Ignore own messages always
+  if (message.author.id === client.user.id) return;
+
+  // Allow configured bots, ignore all other bots
+  const allowedBots = character.discord?.allowBots || [];
+  if (message.author.bot && !allowedBots.includes(message.author.id)) return;
 
   const isDM = message.channel.type === ChannelType.DM;
 
