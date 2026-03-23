@@ -1,0 +1,19 @@
+{
+  "name": "automate-e",
+  "version": "0.1.0",
+  "description": "Automate-E — Kubernetes-native AI agent runtime for Discord",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "discord.js": "^14.18.0",
+    "pg": "^8.13.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
