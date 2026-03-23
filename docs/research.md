@@ -6,6 +6,28 @@ title: Competitive Research — Automate-E
 
 Research across 35+ products in 6 categories. **No single product combines all six capabilities we need**: character personality + Discord-native + Kubernetes-native + multi-replica scaling + persistent memory + function calling.
 
+## OpenClaw vs Automate-E
+
+OpenClaw is the existing agent runner used by Pi-E, Volt-E, iBuild-E, and other agents in the Dashecorp fleet. Here's how it compares to Automate-E:
+
+| Capability | OpenClaw | Automate-E |
+|---|---|---|
+| **Purpose** | Run Claude Code CLI sessions | Run AI agents with character + tools |
+| **Discord** | Native (channel per agent) | Native (channel per agent) |
+| **LLM** | Claude (via Claude Code) | Any (Vercel AI SDK — Claude, Gemini, etc.) |
+| **Memory** | Session-based (ephemeral) | Persistent (Postgres — conversations, facts, patterns) |
+| **Personality** | System prompt in openclaw.json | Structured character file (ElizaOS-compatible) |
+| **Tool use** | MCP servers | HTTP API endpoints (defined in character config) |
+| **Scaling** | Single process per agent | Gateway + N workers (KEDA auto-scaling) |
+| **Pod restarts** | Loses session state | State survives (Postgres + Redis) |
+| **Architecture** | Monolithic (bot + LLM + tools in one process) | Split (gateway + workers + memory) |
+| **K8s native** | Runs on k8s but not designed for it | Built for k8s from day one |
+| **Use case** | Interactive coding assistant | Autonomous task agent (accounting, support, etc.) |
+
+**Key difference:** OpenClaw is an interactive coding agent — it runs Claude Code sessions. Automate-E is a task automation agent — it has a persistent character, remembers conversations, and autonomously processes documents using tool calling. OpenClaw's agents lose context on restart; Automate-E's agents pick up where they left off.
+
+**Not a replacement:** OpenClaw and Automate-E serve different purposes. OpenClaw is for coding tasks (iBuild-E building iOS apps). Automate-E is for business automation (Book-E processing invoices). Both run on the same k3s cluster.
+
 ## The Gap
 
 | Capability | ElizaOS | Mastra | LangGraph | CrewAI | kagent | **Automate-E** |
