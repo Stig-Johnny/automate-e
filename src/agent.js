@@ -43,7 +43,7 @@ export function createAgent(character, memory) {
         const toolResults = [];
         for (const block of response.content) {
           if (block.type === 'tool_use') {
-            console.log(`[Book-E] Tool call: ${block.name}`);
+            console.log(`[Automate-E] Tool call: ${block.name}`);
             const result = await executeTool(block.name, block.input, character);
             toolResults.push({
               type: 'tool_result',
