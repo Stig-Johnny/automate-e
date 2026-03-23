@@ -4,99 +4,114 @@ title: Competitive Research — Automate-E
 
 # Competitive Research
 
-Research across 35+ products in 6 categories. **No single product combines all six capabilities we need**: character personality + Discord-native + Kubernetes-native + multi-replica scaling + persistent memory + function calling.
+## Starting Point: OpenClaw
 
-## OpenClaw vs Automate-E
+Automate-E is not built from scratch. It extends [OpenClaw](https://github.com/openclaw/openclaw), the open-source agent runtime already powering Pi-E, Volt-E, Review-E, and iBuild-E in production.
 
-OpenClaw is the existing agent runner used by Pi-E, Volt-E, iBuild-E, and other agents in the Dashecorp fleet. Here's how it compares to Automate-E:
+### What OpenClaw Has
 
-| Capability | OpenClaw | Automate-E |
-|---|---|---|
-| **Purpose** | Run Claude Code CLI sessions | Run AI agents with character + tools |
-| **Discord** | Native (channel per agent) | Native (channel per agent) |
-| **LLM** | Claude (via Claude Code) | Any (Vercel AI SDK — Claude, Gemini, etc.) |
-| **Memory** | Session-based (ephemeral) | Persistent (Postgres — conversations, facts, patterns) |
-| **Personality** | System prompt in openclaw.json | Structured character file (ElizaOS-compatible) |
-| **Tool use** | MCP servers | HTTP API endpoints (defined in character config) |
-| **Scaling** | Single process per agent | Gateway + N workers (KEDA auto-scaling) |
-| **Pod restarts** | Loses session state | State survives (Postgres + Redis) |
-| **Architecture** | Monolithic (bot + LLM + tools in one process) | Split (gateway + workers + memory) |
-| **K8s native** | Runs on k8s but not designed for it | Built for k8s from day one |
-| **Use case** | Interactive coding assistant | Autonomous task agent (accounting, support, etc.) |
+| Feature | Implementation |
+|---|---|
+| **Personality** | SOUL.md — identity, guardrails, style, rate limits |
+| **Discord** | Native WebSocket gateway, per-channel config, mention handling, sessions |
+| **Telegram** | Native, with pairing and DM policies |
+| **Tools** | MCP profiles: fs, shell, cron, memory, web, browser. Deny-list security model |
+| **Memory** | `memory_search()` / `memory_set()` MCP tools (in-memory) |
+| **Model failover** | Primary + fallbacks, auto-retry on 529 |
+| **Security** | 3-layer: network (Tailscale/iptables) + tools (deny-list) + config (sandbox) |
+| **Sessions** | Per-thread, idle timeout, history limit |
+| **Config** | `openclaw.json` — one file for everything |
+| **Auth** | OAuth (Claude Max) or API key |
+| **Deployment** | Docker container per agent on bare metal/VPS |
 
-**Key difference:** OpenClaw is an interactive coding agent — it runs Claude Code sessions. Automate-E is a task automation agent — it has a persistent character, remembers conversations, and autonomously processes documents using tool calling. OpenClaw's agents lose context on restart; Automate-E's agents pick up where they left off.
+### What OpenClaw Lacks
 
-**Not a replacement:** OpenClaw and Automate-E serve different purposes. OpenClaw is for coding tasks (iBuild-E building iOS apps). Automate-E is for business automation (Book-E processing invoices). Both run on the same k3s cluster.
+| Gap | Impact |
+|---|---|
+| In-memory state only | Pod restart = all sessions, memory, and context lost |
+| Single-process architecture | Cannot scale horizontally, single point of failure |
+| No k8s support | Manual Docker deploy, no Helm, no ArgoCD, no HPA |
+| No shared state | Each agent instance is fully isolated |
+| Docker networking issues | `gateway.bind: "lan"` breaks cron in Docker |
+| No long-term archival | No 5-year retention, no observational memory |
 
-## The Gap
+## Competitive Landscape
 
-| Capability | ElizaOS | Mastra | LangGraph | CrewAI | kagent | **Automate-E** |
+Research across 35+ products. Key finding: **no product combines OpenClaw's agent model with Kubernetes-native scaling and persistent state.**
+
+### OpenClaw vs Everything Else
+
+| | OpenClaw | ElizaOS | Mastra | LangGraph | kagent | **Automate-E** |
 |---|---|---|---|---|---|---|
-| Character/Personality | Yes | No | No | Partial | No | **Yes** |
-| Discord Native | Plugin | No | No | No | No | **Yes** |
-| K8s Native | No | No | No | No | Yes | **Yes** |
-| Multi-Replica Scaling | No | No | Commercial | No | Yes | **Yes** |
-| Persistent Memory | Basic | Good | Checkpoint | 4-layer | No | **Yes** |
-| Function Calling | Actions | Tools | Tools | Tools | MCP | **Yes** |
+| Battle-tested agents | **Yes** (4 in prod) | Community | No agents in prod | Enterprise | DevOps only | **Yes** (inherits) |
+| Personality (SOUL.md) | **Yes** | Character JSON | Prompt only | Prompt only | No | **Yes** (inherits) |
+| Discord native | **Yes** | Plugin | No | No | No | **Yes** (inherits) |
+| MCP tools | **Yes** | Plugin actions | Zod tools | LangChain tools | MCP | **Yes** (inherits) |
+| Model failover | **Yes** | Config | Vercel AI SDK | LangChain | Config | **Yes** (inherits) |
+| Security layers | **3-layer** | Basic | None | None | RBAC | **3-layer** (inherits + k8s) |
+| Persistent memory | In-memory | Postgres | Postgres | Postgres | None | **Postgres** (new) |
+| K8s native | No | No | No | No | **Yes** | **Yes** (new) |
+| Multi-replica | No | No | No | Commercial | Yes | **Yes** (new) |
+| Helm chart | No | No | No | No | Yes | **Yes** (new) |
+| Pod restart resilience | No | No | Yes | Yes | Yes | **Yes** (new) |
 
-## Key Findings by Category
+### Key Insight
 
-### Character Frameworks
-- **ElizaOS** (17.8k stars, MIT): De facto standard for character files. Plugin architecture. Native Discord. But single-process, no k8s.
-- **Letta/MemGPT** (15k stars, Apache-2.0): Best memory model — 3-tier (core/recall/archival) inspired by OS architecture. Agents edit own memory.
-- **SillyTavern** (43k stars, AGPL): World Info for lore injection. Universal LLM backend switching.
+Every other framework would require us to rebuild what OpenClaw already does (Discord, tools, sessions, security). Automate-E avoids that by extending OpenClaw with the pieces it's missing.
 
-### Agent Orchestration
-- **Mastra** (22k stars, Apache-2.0): Best observational memory — compressed reflections reduce tokens ~90%.
-- **LangGraph** (44.6k stars, MIT): Checkpoint-per-step. Used by LinkedIn, Uber, Klarna.
-- **Flowise** (50.9k stars, Apache-2.0): **Dual-mode deployment** — simple (SQLite) for dev, BullMQ+Redis for production scaling. Directly relevant pattern.
-- **Dify** (129.8k stars): Low barrier to entry drives adoption. Docker Compose first.
+## What We Learn From Other Products
 
-### Discord on Kubernetes
-- **Kubecord**: **The reference architecture.** Gateway → NATS → Workers → Redis. Shards as separate pods. Exactly the pattern we need.
-- **Marver**: K8s StatefulSet autoscaler using Discord's recommended shard count.
-- **discord-hybrid-sharding**: 40-60% resource reduction vs standard sharding.
+### From ElizaOS: Character File Format
+ElizaOS character JSON (name, bio, lore, style, message examples) is the community standard for AI character definition. We should support this format alongside SOUL.md for agents that need structured personality beyond free-form markdown.
 
-### K8s-Native AI
-- **kagent** (817 stars, Apache-2.0, CNCF): Agent CRDs (Agent, ModelConfig, RemoteMCPServer). First k8s-native agent framework.
-- **Agent Sandbox** (kubernetes-sigs): Warm pools for <1s cold start. Suspension/resumption. Official k8s SIG project.
-- **KServe/Seldon/Ray**: ML serving patterns — CRDs, scale-to-zero, vertical-before-horizontal scaling.
+### From Letta/MemGPT: Memory Hierarchy
+Three-tier memory model (Core/Recall/Archival) inspired by OS architecture. Agents edit their own memory using tools. We apply this to OpenClaw's `memory_search`/`memory_set`:
+- **Core** = Redis (hot, active session) — replaces OpenClaw's in-memory
+- **Recall** = Postgres + pgvector (warm, searchable history)
+- **Archival** = Postgres (cold, 5-year retention)
 
-### Memory Systems
-- **Mem0** (50.6k stars): Atomic fact extraction. 26% accuracy over OpenAI Memory. 91% faster. 90% fewer tokens.
-- **Zep/Graphiti**: Temporal knowledge graph — facts have periods of validity.
-- **Motorhead** (Rust): Dead simple — 3 endpoints. Incremental summarization.
+### From Mastra: Observational Memory
+Compressed reflections stored separately from raw messages. "User prefers account 6540 for software." Reduces token costs ~90%. We add this as a post-conversation extraction step.
 
-### Message Queues
-- **BullMQ**: Proven by Flowise for horizontal scaling. KEDA integration. TypeScript native.
-- **NATS JetStream**: Used by Kubecord. Lightweight. Built-in service discovery.
-- **Postgres LISTEN/NOTIFY**: **Does NOT scale** — global mutex bottleneck.
-- **Redis Streams**: Middle ground. Consumer groups + replay. KEDA support.
+### From Mem0: Atomic Fact Extraction
+Extract `{user, fact, confidence}` tuples after conversations. Scoped per user, agent, company. 26% accuracy improvement over stuffing raw context.
 
-## Technology Decisions
+### From Kubecord: Gateway + Worker Pattern
+The reference architecture for Discord bots on k8s. Gateway (StatefulSet) → NATS/Redis → Workers (Deployment). We adopt this for Phase 2, using BullMQ instead of NATS (TypeScript native, KEDA integration).
+
+### From Flowise: Dual-Mode Deployment
+Simple mode (SQLite, single process) for dev, production mode (Postgres + Redis + BullMQ) for scaling. Users start simple, graduate to distributed. We apply this: Phase 1 is single-pod OpenClaw with Postgres, Phase 2 adds the split.
+
+### From kagent: Agent CRD
+K8s custom resource definitions for agents. `kubectl apply -f agent.yaml` creates a running agent. We adopt this pattern for Phase 3.
+
+### From Agent Sandbox (k8s-sigs): Warm Pools
+Pre-warmed pods for <1s cold start. Suspension/resumption for idle agents. We adopt this for cost efficiency when running many agents.
+
+## Technology Choices
 
 | Component | Choice | Rationale |
-|-----------|--------|-----------|
-| Language | TypeScript | ElizaOS, Mastra, Flowise all TS. Largest Discord ecosystem. |
-| Discord Gateway | StatefulSet, 1 shard/pod | Kubecord pattern. Stable identity. |
-| Event Bus | BullMQ (Redis) | Proven by Flowise. KEDA integration. TypeScript native. |
-| Memory — Hot | Redis | Sub-ms working memory. |
-| Memory — Warm | Postgres + pgvector | Searchable history with embeddings. |
-| Memory — Cold | Postgres archival | Long-term, 5yr retention. |
-| Character Format | ElizaOS-compatible JSON | De facto standard. |
-| Agent CRD | Inspired by kagent + agent-sandbox | K8s-native declarative. |
-| Autoscaling | KEDA + HPA | Event-driven based on queue depth. |
-| LLM | Vercel AI SDK | Multi-provider (Claude, Gemini, OpenAI). |
+|---|---|---|
+| **Runtime base** | OpenClaw (Node.js/TypeScript) | Battle-tested, 4 agents in production |
+| **Persistence** | Postgres + pgvector | OpenClaw memory_set → Postgres adapter |
+| **Hot state** | Redis | Session state + BullMQ queue |
+| **Queue** | BullMQ | Proven by Flowise, KEDA integration, TypeScript |
+| **Discord** | OpenClaw native | Already works, don't rebuild |
+| **Tools** | OpenClaw MCP | Already works, don't rebuild |
+| **Personality** | SOUL.md (OpenClaw) + character.json (optional) | Inherit what works, extend where needed |
+| **Autoscaling** | KEDA | Event-driven scaling on queue depth |
+| **Deployment** | Helm chart | k8s-native, ArgoCD-compatible |
+| **Agent definition** | CRD (Phase 3) | Inspired by kagent |
 
 ## Sources
 
-Key references (full list in research agent output):
-- [Kubecord](https://github.com/kubecord/Kubecord) — k8s Discord architecture
-- [ElizaOS](https://github.com/elizaOS/eliza) — character file standard
-- [Letta](https://github.com/letta-ai/letta) — memory hierarchy
-- [Mem0](https://github.com/mem0ai/mem0) — atomic memory extraction
-- [kagent](https://github.com/kagent-dev/kagent) — k8s agent CRDs
-- [Agent Sandbox](https://github.com/kubernetes-sigs/agent-sandbox) — k8s SIG
-- [Flowise](https://github.com/FlowiseAI/Flowise) — BullMQ scaling
+- [OpenClaw](https://github.com/openclaw/openclaw) — base runtime
+- [Kubecord](https://github.com/kubecord/Kubecord) — k8s Discord gateway+worker pattern
+- [ElizaOS](https://github.com/elizaOS/eliza) — character file format
+- [Letta/MemGPT](https://github.com/letta-ai/letta) — 3-tier memory hierarchy
+- [Mem0](https://github.com/mem0ai/mem0) — atomic fact extraction
 - [Mastra](https://github.com/mastra-ai/mastra) — observational memory
+- [Flowise](https://github.com/FlowiseAI/Flowise) — BullMQ dual-mode scaling
+- [kagent](https://github.com/kagent-dev/kagent) — k8s agent CRDs
+- [Agent Sandbox](https://github.com/kubernetes-sigs/agent-sandbox) — k8s-sigs warm pools
 - [KEDA](https://keda.sh/) — event-driven autoscaling
