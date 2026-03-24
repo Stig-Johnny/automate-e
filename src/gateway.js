@@ -26,6 +26,18 @@ if (!redisUrl) {
 const redis = new Redis(redisUrl);
 redis.on('error', (err) => console.error('[Gateway] Redis error:', err.message));
 
+// Subscribe to worker dashboard events
+const redisSub = new Redis(redisUrl);
+redisSub.on('error', (err) => console.error('[Gateway] Redis sub error:', err.message));
+redisSub.subscribe('automate-e:dashboard');
+redisSub.on('message', (channel, message) => {
+  try {
+    const event = JSON.parse(message);
+    if (event.type === 'log') dashboard.addLog(event.data.level, event.data.message);
+    if (event.type === 'toolCall') dashboard.addToolCall(event.data.name, event.data.status, event.data.latencyMs);
+  } catch {}
+});
+
 // --- Discord client ---
 const client = new Client({
   intents: [
@@ -128,6 +140,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
     console.log(`[Gateway] ${signal} received, shutting down...`);
     client.destroy();
     redis.disconnect();
+    redisSub.disconnect();
     process.exit(0);
   });
 }

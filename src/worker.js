@@ -22,16 +22,6 @@ const character = loadCharacter();
 const memory = await createMemory();
 const agent = createAgent(character, memory);
 
-const dashboard = {
-  addLog(level, message) {
-    console.log(`[Worker] [${level}] ${message}`);
-  },
-  addToolCall(name, status, latencyMs) {
-    console.log(`[Worker] Tool: ${name} ${status} (${latencyMs}ms)`);
-  },
-  updateSession() {},
-};
-
 // --- Redis ---
 const redisUrl = process.env.REDIS_URL;
 if (!redisUrl) {
@@ -52,6 +42,20 @@ try {
 }
 
 console.log(`[Worker] Started (consumer: ${consumerId}), character: ${character.name}`);
+
+// Publish dashboard events to Redis so gateway can display them
+const DASHBOARD_CHANNEL = 'automate-e:dashboard';
+const dashboard = {
+  addLog(level, message) {
+    console.log(`[Worker] [${level}] ${message}`);
+    redis.publish(DASHBOARD_CHANNEL, JSON.stringify({ type: 'log', data: { level, message, timestamp: new Date().toISOString() } })).catch(() => {});
+  },
+  addToolCall(name, status, latencyMs) {
+    console.log(`[Worker] Tool: ${name} ${status} (${latencyMs}ms)`);
+    redis.publish(DASHBOARD_CHANNEL, JSON.stringify({ type: 'toolCall', data: { name, status, latencyMs, timestamp: new Date().toISOString() } })).catch(() => {});
+  },
+  updateSession() {},
+};
 
 // Send reply directly via Discord REST API (no gateway round-trip)
 const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
