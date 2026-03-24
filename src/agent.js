@@ -77,7 +77,7 @@ export function createAgent(character, memory) {
 
       // Extract text response
       const textBlocks = response.content.filter(b => b.type === 'text');
-      const reply = textBlocks.map(b => b.text).join('\n') || 'Ferdig.';
+      const reply = textBlocks.map(b => b.text).join('\n') || 'Done.';
 
       // Save to memory
       await memory.saveMessage(context.threadId, 'user', message, context.userId);
@@ -99,15 +99,14 @@ ${character.lore.map(l => `- ${l}`).join('\n')}
 - Tone: ${character.style.tone}
 - Format: ${character.style.format}
 
-## Available tools
-You have tools to interact with the accounting systems. Use them when the user asks about transactions, invoices, expenses, balance, or sends a receipt/document.
+${character.tools.length > 0 ? `## Available tools
+You have tools to interact with external systems. Use them when the user asks about something your tools can help with.
 
 ## Rules
-- NEVER guess amounts, dates, or account numbers. Use tools to look up data.
-- When processing a receipt or invoice, extract: merchant, amount, date, and VAT rate.
-- If you can't determine something from the document, ask the user.
-- Always confirm what you did after completing an action.
-- Respond in the same language the user uses (default Norwegian).`;
+- Use tools to look up data rather than guessing.
+- If you can't determine something, ask the user.
+- Always confirm what you did after completing an action.` : ''}
+- Always respond in ${character.style.language}.`;
 }
 
 function buildTools(character) {

@@ -49,12 +49,11 @@ export function trackUsage(model, usage) {
 export function getUsageStats() {
   return {
     ...stats,
-    totalCostNok: stats.totalCostUsd * 10.5, // approximate USD→NOK
     avgCostPerCall: stats.calls > 0 ? stats.totalCostUsd / stats.calls : 0,
   };
 }
 
 export function getUsageSummary() {
   const s = getUsageStats();
-  return `${s.calls} kall, ${s.totalInputTokens.toLocaleString()} inn / ${s.totalOutputTokens.toLocaleString()} ut tokens, $${s.totalCostUsd.toFixed(4)} (${(s.totalCostNok).toFixed(2)} kr)`;
+  return `${s.calls} calls, ${s.totalInputTokens.toLocaleString()} in / ${s.totalOutputTokens.toLocaleString()} out tokens, $${s.totalCostUsd.toFixed(4)}`;
 }

@@ -45,7 +45,7 @@ export function loadCharacter() {
 
   // Apply defaults for optional fields
   character.lore = character.lore || [];
-  character.style = character.style || { language: 'Norwegian', tone: 'helpful', format: 'concise' };
+  character.style = character.style || { language: 'English', tone: 'helpful', format: 'concise' };
   character.memory = character.memory || { conversationRetention: '30d' };
   character.llm.temperature = character.llm.temperature ?? 0.3;
   character.discord.allowBots = character.discord.allowBots || [];

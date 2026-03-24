@@ -102,7 +102,7 @@ client.on('messageCreate', async (message) => {
     console.error('[Automate-E] Error processing message:', error);
     dashboard.addLog('error', `Error: ${error.message}`);
     try {
-      await message.reply('Beklager, noe gikk galt. Prøv igjen.');
+      await message.reply('Sorry, something went wrong. Please try again.');
     } catch (replyError) {
       console.error('[Automate-E] Failed to send error reply:', replyError);
     }
