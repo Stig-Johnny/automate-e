@@ -11,6 +11,7 @@ import { loadCharacter } from './character.js';
 const STREAM_MESSAGES = 'automate-e:messages';
 const STREAM_REPLIES = 'automate-e:replies';
 const MAX_STREAM_LEN = 10000;
+const recentMessageIds = new Set();
 
 const character = loadCharacter();
 
@@ -59,6 +60,14 @@ client.on('messageCreate', async (message) => {
     if (!baseChannel) return;
     const channelName = `#${baseChannel.name}`;
     if (!character.discord.channels.includes(channelName)) return;
+  }
+
+  // Deduplicate — skip if we already published this message
+  if (recentMessageIds.has(message.id)) return;
+  recentMessageIds.add(message.id);
+  if (recentMessageIds.size > 100) {
+    const first = recentMessageIds.values().next().value;
+    recentMessageIds.delete(first);
   }
 
   let threadId;
