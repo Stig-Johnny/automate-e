@@ -115,7 +115,11 @@ while (!shuttingDown) {
           }, dashboard);
 
           // Send reply directly via Discord REST API
-          await sendDiscordReply(msg.threadId, response, msg.isDM);
+          const replyId = `reply-${Date.now()}`;
+          const taggedResponse = `${response}\n\n_[${replyId}]_`;
+          console.log(`[Worker] Sending Discord reply ${replyId} to ${msg.threadId} (${response.length} chars)`);
+          await sendDiscordReply(msg.threadId, taggedResponse, msg.isDM);
+          console.log(`[Worker] Discord reply ${replyId} sent successfully`);
 
           await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
           console.log(`[Worker] Replied to ${msg.threadId} (acked ${id})`);
