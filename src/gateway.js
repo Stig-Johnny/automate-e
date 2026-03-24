@@ -72,12 +72,23 @@ client.on('messageCreate', async (message) => {
     threadId = `dm-${message.author.id}`;
     await message.channel.sendTyping();
   } else {
-    const thread = message.hasThread
-      ? message.thread
-      : await message.startThread({
+    let thread;
+    if (message.hasThread) {
+      thread = message.thread;
+    } else {
+      try {
+        thread = await message.startThread({
           name: `${displayName} — ${new Date().toLocaleDateString('nb-NO')}`,
           autoArchiveDuration: 1440,
         });
+      } catch (err) {
+        if (err.code === 160004) {
+          thread = await message.fetch().then(m => m.thread);
+        } else {
+          throw err;
+        }
+      }
+    }
     threadId = thread.id;
     await thread.sendTyping();
   }
