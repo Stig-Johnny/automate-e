@@ -3,6 +3,7 @@ import { WebSocketServer } from 'ws';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { getUsageStats } from '../usage.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -36,7 +37,11 @@ export function createDashboard(character, memory) {
         logs: state.logs.slice(-50),
         uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
         memoryType: memory ? 'postgres' : 'in-memory',
+        usage: getUsageStats(),
       }));
+    } else if (req.url === '/api/usage') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(getUsageStats()));
     } else if (req.url === '/api/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'ok' }));
