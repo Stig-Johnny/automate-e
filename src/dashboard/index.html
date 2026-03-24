@@ -93,7 +93,7 @@
 </div>
 
 <script>
-const wsUrl = `ws://${location.host}`;
+const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
 let ws;
 let toolCallCount = 0;
 let toolErrorCount = 0;
