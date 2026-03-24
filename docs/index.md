@@ -49,11 +49,16 @@ sequenceDiagram
     G->>U: "Saldo: 142 350 kr"
 ```
 
-## Quick Links
+## Get Started
 
-- [Quick Start](quickstart.md) -- run an agent locally in 5 minutes
-- [Configuration](configuration.md) -- full `character.json` reference
+1. [Quick Start](quickstart.md) -- run an agent locally in 5 minutes (test mode, no Discord needed)
+2. [Discord Bot Setup](discord-setup.md) -- create a bot and connect to Discord
+3. [Configuration](configuration.md) -- full `character.json` reference
+
+## Learn More
+
 - [Architecture](architecture.md) -- how the runtime works internally
 - [Deployment](deployment.md) -- deploy to Kubernetes with Helm
 - [Dashboard](dashboard.md) -- real-time monitoring UI
-- [Book-E](agents/book-e.md) -- the first Automate-E agent
+- [Memory](memory.md) -- persistent conversations and facts
+- [Book-E](agents/book-e.md) -- the first Automate-E agent (AI accountant)
