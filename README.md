@@ -23,19 +23,28 @@ npm install
 node src/index.js
 ```
 
-## Deploy to Kubernetes
-
-```bash
-helm install my-agent charts/automate-e \
-  --set secrets.existingSecret=my-agent-secrets \
-  -f my-character-values.yaml
-```
-
-See [deployment docs](https://ai-accountant-yl9.pages.dev/automate-e/deployment/) for full guide.
-
 ## Character Config
 
-Agents are defined by a JSON config file. See [configuration reference](https://ai-accountant-yl9.pages.dev/automate-e/configuration/).
+Agents are defined by a JSON file with personality, tools, and LLM settings:
+
+```json
+{
+  "name": "My Agent",
+  "personality": "You are a helpful assistant...",
+  "discord": { "channels": ["#general"] },
+  "tools": [
+    {
+      "url": "http://my-api:8080",
+      "endpoints": [
+        { "method": "GET", "path": "/data", "description": "Fetch data" }
+      ]
+    }
+  ],
+  "llm": { "model": "claude-haiku-4-5-20251001", "temperature": 0.3 }
+}
+```
+
+See `examples/book-e/` for a complete example.
 
 ## Architecture
 
@@ -45,19 +54,51 @@ Discord --> Gateway --> Agent Loop (Claude API) --> Tool Calls --> Reply
                         Postgres Memory
 ```
 
-Single-process mode (default) or gateway+worker split with Redis for multiple replicas.
+**Single-process mode** (default): `node src/index.js` — one process handles everything.
+
+**Gateway + Worker mode**: Scale workers independently via Redis Streams.
+
+```
+Discord --> Gateway (1 replica) --> Redis Streams --> Worker (N replicas) --> Discord REST API
+```
+
+## Deploy to Kubernetes
+
+```bash
+helm install my-agent charts/automate-e \
+  --set secrets.existingSecret=my-agent-secrets \
+  -f my-character-values.yaml
+```
+
+Or use raw manifests — see `examples/book-e/` for a full k8s deployment.
 
 ## Dashboard
 
-Live monitoring at port 3000. Expose via Cloudflare Tunnel for remote access.
+Live monitoring dashboard at port 3000 with WebSocket updates:
 
-## First Agent: Book-E
+- Active sessions and message counts
+- Tool call history with latency
+- Token usage and cost per model
+- Live log stream
 
-AI accounting assistant for Invotek AS. Processes receipts, checks balances, tracks expenses via Folio and Fiken APIs.
+Expose externally via Cloudflare Tunnel or any ingress.
 
-- Dashboard: https://book-e.dashecorp.com
-- Config: [Stig-Johnny/ai-accountant](https://github.com/Stig-Johnny/ai-accountant)
+## Project Structure
+
+```
+src/
+  index.js          # Single-process mode (Discord + agent in one process)
+  gateway.js        # Gateway mode (Discord → Redis)
+  worker.js         # Worker mode (Redis → Claude API → Discord REST)
+  agent.js          # Claude API agent loop with tool calling
+  character.js      # Character config loader and validator
+  memory.js         # Postgres memory (conversations, facts, patterns)
+  usage.js          # Token usage tracking and cost calculation
+  dashboard/        # Live monitoring dashboard (HTTP + WebSocket)
+charts/automate-e/  # Helm chart
+examples/book-e/    # Example: Book-E accounting agent for Invotek AS
+```
 
 ## License
 
-Private - Invotek AS
+MIT — see [LICENSE](LICENSE)
