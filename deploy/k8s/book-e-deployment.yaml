@@ -39,6 +39,10 @@ spec:
                 secretKeyRef:
                   name: book-e-secrets
                   key: database-url
+          volumeMounts:
+            - name: character
+              mountPath: /config
+              readOnly: true
           resources:
             requests:
               memory: "64Mi"
@@ -46,3 +50,7 @@ spec:
             limits:
               memory: "256Mi"
               cpu: "500m"
+      volumes:
+        - name: character
+          configMap:
+            name: book-e-character
