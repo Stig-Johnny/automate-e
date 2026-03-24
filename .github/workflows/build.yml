@@ -49,22 +49,20 @@ jobs:
   update-gitops:
     needs: build-and-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout ai-accountant
-        uses: actions/checkout@v4
-        with:
-          repository: Stig-Johnny/ai-accountant
-          token: ${{ secrets.RELEASE_PAT }}
+      - uses: actions/checkout@v4
 
       - name: Update Book-E image tag
         run: |
-          sed -i "s|image: ghcr.io/stig-johnny/automate-e:.*|image: ghcr.io/stig-johnny/automate-e:${{ github.sha }}|" deploy/k8s/book-e-deployment.yaml
-          cat deploy/k8s/book-e-deployment.yaml | grep "image:"
+          sed -i "s|image: ghcr.io/stig-johnny/automate-e:.*|image: ghcr.io/stig-johnny/automate-e:${{ github.sha }}|" examples/book-e/book-e-deployment.yaml
+          grep "image:" examples/book-e/book-e-deployment.yaml
 
       - name: Commit and push
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add deploy/k8s/book-e-deployment.yaml
+          git add examples/book-e/book-e-deployment.yaml
           git diff --cached --quiet && echo "No changes" || git commit -m "chore: update Book-E image to ${{ github.sha }}"
-          git push
+          git pull --rebase && git push
