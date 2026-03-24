@@ -27,15 +27,30 @@ The dashboard runs on port 3000 by default (configurable via `DASHBOARD_PORT`).
 npm start
 ```
 
-### Kubernetes with Cloudflare Tunnel
+### Production (Cloudflare Tunnel)
 
-In production, expose the dashboard via a Cloudflare Tunnel rather than a public LoadBalancer:
+In production, expose the dashboard via a Cloudflare Tunnel. The Book-E dashboard is available at:
 
-```bash
-cloudflared tunnel --url http://book-e.ai-accountant.svc.cluster.local:3000
+```
+https://book-e.dashecorp.com
 ```
 
-Or configure a persistent tunnel in Cloudflare Zero Trust to route a subdomain (e.g., `dashboard.example.com`) to the dashboard service.
+Enable the tunnel in Helm values:
+
+```yaml
+tunnel:
+  enabled: true
+  tokenSecretName: cloudflared-automate-e-token
+  hostname: book-e.dashecorp.com
+```
+
+This deploys a `cloudflared` sidecar container that routes traffic from the public hostname to the dashboard service inside the cluster. The tunnel token is stored as a Kubernetes secret created manually before deployment.
+
+### Ad-hoc access via port-forward
+
+```bash
+kubectl port-forward -n automate-e deploy/book-e 3000:3000
+```
 
 ## WebSocket Protocol
 
@@ -73,10 +88,6 @@ sequenceDiagram
 
 The dashboard has no built-in authentication. In production:
 
-- Do not expose the dashboard port via a public Service or Ingress
 - Use Cloudflare Tunnel with Cloudflare Access for authentication
-- Or use `kubectl port-forward` for ad-hoc access:
-
-```bash
-kubectl port-forward -n ai-accountant deploy/book-e 3000:3000
-```
+- Do not expose the dashboard port via a public Service or Ingress
+- The Helm chart's tunnel integration handles this automatically when enabled

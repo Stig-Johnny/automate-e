@@ -6,6 +6,10 @@ title: Automate-E Runtime
 
 Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `character.json` config file into a running Discord bot backed by Claude, with persistent memory, tool calling, and cost tracking.
 
+- **Repository:** [Stig-Johnny/automate-e](https://github.com/Stig-Johnny/automate-e) (public, MIT license)
+- **Documentation:** [stig-johnny.github.io/automate-e](https://stig-johnny.github.io/automate-e/)
+- **Deployment:** Helm chart in `charts/automate-e/`, deployed via ArgoCD
+
 ## Key Features
 
 | Feature | Description |
@@ -17,7 +21,8 @@ Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `char
 | **Tool calling** | Agents call HTTP APIs defined in `character.json` |
 | **Cost tracking** | Per-model token usage and cost calculation |
 | **Live dashboard** | Real-time WebSocket dashboard for monitoring agent activity |
-| **K8s-native** | Designed to run as a Deployment with ConfigMap-mounted character files |
+| **Helm chart** | Deploy single-process or gateway+worker mode via Helm |
+| **Split mode** | Gateway + Redis Streams + workers for horizontal scaling |
 
 ## How It Works
 
@@ -44,14 +49,11 @@ sequenceDiagram
     G->>U: "Saldo: 142 350 kr"
 ```
 
-## Repository
-
-The runtime lives in [`Stig-Johnny/automate-e`](https://github.com/Stig-Johnny/automate-e) (private). Agent configurations (like Book-E) live in the consuming repo alongside their k8s manifests.
-
 ## Quick Links
 
 - [Quick Start](quickstart.md) -- run an agent locally in 5 minutes
 - [Configuration](configuration.md) -- full `character.json` reference
 - [Architecture](architecture.md) -- how the runtime works internally
-- [Deployment](deployment.md) -- deploy to Kubernetes
+- [Deployment](deployment.md) -- deploy to Kubernetes with Helm
+- [Dashboard](dashboard.md) -- real-time monitoring UI
 - [Book-E](agents/book-e.md) -- the first Automate-E agent

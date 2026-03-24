@@ -6,11 +6,15 @@ title: Architecture
 
 How the Automate-E runtime turns a `character.json` into a running Discord agent.
 
-## Component Overview
+## Deployment Modes
+
+### Single-process mode
+
+`index.js` runs everything in one process: Discord gateway, agent loop, memory, dashboard.
 
 ```mermaid
 graph TB
-    subgraph "Automate-E Runtime"
+    subgraph "Single Process (index.js)"
         CL[Character Loader<br/>character.js]
         DG[Discord Gateway<br/>discord.js]
         AL[Agent Loop<br/>agent.js]
@@ -32,7 +36,35 @@ graph TB
     UT --> DB
 ```
 
-## Startup Sequence
+### Split mode (gateway + workers)
+
+In production, the system runs as separate processes connected by Redis Streams.
+
+- **gateway.js** (1 replica) -- connects to Discord, publishes messages to the `automate-e:messages` Redis Stream
+- **worker.js** (N replicas) -- consumes messages via a Redis consumer group, runs the agent loop, sends replies directly via Discord REST API
+
+```mermaid
+graph LR
+    DC[Discord] <--> GW[gateway.js<br/>1 replica]
+    GW -->|XADD| RS[Redis Stream<br/>automate-e:messages]
+    RS -->|XREADGROUP| W1[worker.js<br/>replica 1]
+    RS -->|XREADGROUP| W2[worker.js<br/>replica 2]
+    W1 -->|REST API| DC
+    W2 -->|REST API| DC
+    W1 <--> CL[Claude API]
+    W2 <--> CL
+    W1 <--> MEM[Memory<br/>Postgres]
+    W2 <--> MEM
+```
+
+Key details of split mode:
+
+- **Redis consumer group** (`workers`) ensures each message is delivered to exactly one worker
+- **Redis SETNX lock** (`lock:<stream-id>`, 300s TTL) prevents duplicate processing if a message is redelivered
+- **Workers send replies directly** via Discord REST API -- there is no reply stream back through the gateway
+- **Gateway** handles thread creation and typing indicators before publishing
+
+## Startup Sequence (single-process)
 
 ```mermaid
 sequenceDiagram
@@ -73,6 +105,8 @@ flowchart TD
     TEXT --> SAVE[Save messages<br/>to memory]
     SAVE --> REPLY[Post reply<br/>in Discord thread]
 ```
+
+In split mode, the gateway handles filtering and thread creation, then publishes to Redis. The worker handles everything from LOAD onward and sends the reply via Discord REST API.
 
 ## Key Design Decisions
 
@@ -116,7 +150,9 @@ The memory system has three layers:
 ```
 automate-e/
   src/
-    index.js          # Entry point, startup orchestration
+    index.js          # Single-process entry point
+    gateway.js        # Split mode: Discord gateway, publishes to Redis Stream
+    worker.js         # Split mode: consumes from Redis, runs agent, replies via REST
     character.js      # Loads and validates character.json
     agent.js          # Agent loop, tool dispatch, prompt building
     memory.js         # Postgres + in-memory storage
@@ -124,6 +160,8 @@ automate-e/
     dashboard/
       server.js       # HTTP server + WebSocket
       index.html      # Dashboard UI
+  charts/
+    automate-e/       # Helm chart
   Dockerfile
   package.json
 ```
