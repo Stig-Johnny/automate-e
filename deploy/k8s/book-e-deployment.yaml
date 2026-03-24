@@ -39,6 +39,10 @@ spec:
                 secretKeyRef:
                   name: book-e-secrets
                   key: database-url
+            # Optional: set REDIS_URL to enable gateway/worker split mode
+            # When set, deploy separate gateway + worker pods instead of this single deployment
+            # - name: REDIS_URL
+            #   value: "redis://redis.automate-e.svc.cluster.local:6379"
           volumeMounts:
             - name: character
               mountPath: /config
