@@ -42,13 +42,16 @@ markdown_extensions:
 
 nav:
   - Overview: index.md
-  - Quick Start: quickstart.md
-  - Configuration: configuration.md
-  - Architecture: architecture.md
-  - Deployment: deployment.md
-  - Dashboard: dashboard.md
-  - Memory: memory.md
-  - Usage Tracking: usage-tracking.md
+  - Getting Started:
+    - Quick Start: quickstart.md
+    - Discord Bot Setup: discord-setup.md
+    - Configuration: configuration.md
+  - Reference:
+    - Architecture: architecture.md
+    - Deployment: deployment.md
+    - Dashboard: dashboard.md
+    - Memory: memory.md
+    - Usage Tracking: usage-tracking.md
   - Agents:
     - Book-E: agents/book-e.md
 
