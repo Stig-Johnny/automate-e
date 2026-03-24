@@ -97,6 +97,22 @@ export DATABASE_URL=postgresql://user:pass@localhost:5432/agent
 
 Without `DATABASE_URL`, the agent uses in-memory storage (lost on restart).
 
+## 6. Test Mode (No Discord Required)
+
+Test your agent without a Discord bot token using the built-in web chat:
+
+```bash
+export CHARACTER_FILE=./character.json
+export ANTHROPIC_API_KEY=<your-key>
+
+npm test
+# or: node src/test.js
+```
+
+Open `http://localhost:3000` — chat with your agent directly in the browser. The sidebar shows token usage, tool calls, and logs in real-time.
+
+![Test Mode](images/test-mode.png)
+
 ## Next Steps
 
 - [Configuration Reference](configuration.md) -- all character.json fields

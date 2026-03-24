@@ -200,7 +200,6 @@ function renderUsage(u) {
     <div class="stat"><span class="stat-label">Input tokens</span><span class="stat-value">${u.totalInputTokens?.toLocaleString() || 0}</span></div>
     <div class="stat"><span class="stat-label">Output tokens</span><span class="stat-value">${u.totalOutputTokens?.toLocaleString() || 0}</span></div>
     <div class="stat"><span class="stat-label">Cost (USD)</span><span class="stat-value" style="color:#d29922">$${u.totalCostUsd?.toFixed(4) || '0'}</span></div>
-    <div class="stat"><span class="stat-label">Cost (NOK)</span><span class="stat-value" style="color:#d29922">${u.totalCostNok?.toFixed(2) || '0'} kr</span></div>
     <div class="stat"><span class="stat-label">Avg per call</span><span class="stat-value">$${u.avgCostPerCall?.toFixed(4) || '0'}</span></div>
     ${models}
     <div class="stat"><span class="stat-label">Since</span><span class="stat-value">${u.startedAt?.slice(0,10) || '-'}</span></div>
