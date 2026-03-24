@@ -50,6 +50,7 @@ data:
         }
       ],
       "discord": { "channels": ["#invoices"], "threadMode": "per-document", "allowBots": ["1477267530946187305"] },
+      "style": { "language": "Norwegian", "tone": "helpful", "format": "concise" },
       "memory": { "conversationRetention": "30d", "patternRetention": "indefinite", "historyRetention": "5y" },
       "llm": { "provider": "anthropic", "model": "claude-haiku-4-5-20251001", "temperature": 0.3 }
     }

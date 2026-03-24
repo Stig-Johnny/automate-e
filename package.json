@@ -8,7 +8,8 @@
     "start": "node src/index.js",
     "start:gateway": "node src/gateway.js",
     "start:worker": "node src/worker.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node src/test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
