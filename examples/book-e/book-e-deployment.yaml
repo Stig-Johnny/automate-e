@@ -20,7 +20,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: gateway
-          image: ghcr.io/stig-johnny/automate-e:cf7a11ec4aaf12e65b6d9fc164e6ee6b53392a15
+          image: ghcr.io/stig-johnny/automate-e:818b77e3a249eccac0412b9c501abb6cb600e15a
           imagePullPolicy: Always
           command: ["node", "src/gateway.js"]
           env:
@@ -69,7 +69,7 @@ spec:
         - name: ghcr-pull-secret
       containers:
         - name: worker
-          image: ghcr.io/stig-johnny/automate-e:cf7a11ec4aaf12e65b6d9fc164e6ee6b53392a15
+          image: ghcr.io/stig-johnny/automate-e:818b77e3a249eccac0412b9c501abb6cb600e15a
           imagePullPolicy: Always
           command: ["node", "src/worker.js"]
           env:
