@@ -99,7 +99,7 @@ character:
     temperature: 0.3
 redis:
   enabled: true
-  url: redis://book-e-automate-e-redis:6379
+  url: redis://automate-e-redis:6379
   deploy: true
   storage: 1Gi
   storageClass: nfs-csi
