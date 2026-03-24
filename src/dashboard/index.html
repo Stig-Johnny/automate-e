@@ -71,6 +71,13 @@
   </div>
 
   <div class="card">
+    <div class="card-header">Token Usage & Cost</div>
+    <div class="card-body" id="usage">
+      <div class="empty">No LLM calls yet</div>
+    </div>
+  </div>
+
+  <div class="card">
     <div class="card-header">Stats</div>
     <div class="card-body" id="stats">
       <div class="empty">Loading...</div>
@@ -127,6 +134,9 @@ function renderInit(data) {
     <div class="stat"><span class="stat-label">Memory</span><span class="stat-value">${data.memoryType || '-'}</span></div>
   `;
 
+  // Usage
+  if (data.usage) renderUsage(data.usage);
+
   // Sessions
   const sessions = Object.entries(data.sessions || {});
   if (sessions.length) {
@@ -178,6 +188,25 @@ function updateStats() {
   `;
 }
 
+function renderUsage(u) {
+  if (!u || u.calls === 0) return;
+  let models = '';
+  for (const [model, data] of Object.entries(u.byModel || {})) {
+    const shortName = model.replace('claude-', '').replace('-20251001', '');
+    models += `<div class="stat"><span class="stat-label">${shortName}</span><span class="stat-value">${data.calls} calls, $${data.costUsd.toFixed(4)}</span></div>`;
+  }
+  document.getElementById('usage').innerHTML = `
+    <div class="stat"><span class="stat-label">LLM calls</span><span class="stat-value">${u.calls}</span></div>
+    <div class="stat"><span class="stat-label">Input tokens</span><span class="stat-value">${u.totalInputTokens?.toLocaleString() || 0}</span></div>
+    <div class="stat"><span class="stat-label">Output tokens</span><span class="stat-value">${u.totalOutputTokens?.toLocaleString() || 0}</span></div>
+    <div class="stat"><span class="stat-label">Cost (USD)</span><span class="stat-value" style="color:#d29922">$${u.totalCostUsd?.toFixed(4) || '0'}</span></div>
+    <div class="stat"><span class="stat-label">Cost (NOK)</span><span class="stat-value" style="color:#d29922">${u.totalCostNok?.toFixed(2) || '0'} kr</span></div>
+    <div class="stat"><span class="stat-label">Avg per call</span><span class="stat-value">$${u.avgCostPerCall?.toFixed(4) || '0'}</span></div>
+    ${models}
+    <div class="stat"><span class="stat-label">Since</span><span class="stat-value">${u.startedAt?.slice(0,10) || '-'}</span></div>
+  `;
+}
+
 function formatUptime(seconds) {
   if (!seconds) return '--';
   const h = Math.floor(seconds / 3600);
@@ -195,6 +224,7 @@ setInterval(async () => {
     const res = await fetch('/api/state');
     const data = await res.json();
     document.getElementById('uptime').textContent = formatUptime(data.uptime);
+    if (data.usage) renderUsage(data.usage);
   } catch {}
 }, 10000);
 

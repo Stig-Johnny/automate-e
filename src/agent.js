@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { trackUsage } from './usage.js';
 
 export function createAgent(character, memory) {
   const anthropic = new Anthropic();
@@ -35,6 +36,12 @@ export function createAgent(character, memory) {
           tools,
           messages,
         });
+
+        // Track token usage and cost
+        const usageInfo = trackUsage(character.llm.model, response.usage);
+        if (dashboard && usageInfo) {
+          dashboard.addLog('info', `LLM: ${usageInfo.inputTokens} in / ${usageInfo.outputTokens} out, $${usageInfo.costUsd.toFixed(4)}`);
+        }
 
         // If no tool use, we're done
         if (response.stop_reason !== 'tool_use') break;
