@@ -1,3 +1,5 @@
+{{- if eq .Values.mode "single" }}
+# Single-process mode: one deployment handles Discord + agent loop
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,7 +7,7 @@ metadata:
   labels:
     {{- include "automate-e.labels" . | nindent 4 }}
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
       {{- include "automate-e.selectorLabels" . | nindent 6 }}
@@ -38,10 +40,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: database-url
-            {{- if .Values.redis.enabled }}
-            - name: REDIS_URL
-              value: {{ .Values.redis.url | quote }}
-            {{- end }}
           volumeMounts:
             - name: character
               mountPath: /config
@@ -57,3 +55,115 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+{{- else }}
+# Gateway+Worker mode: gateway handles Discord, workers process messages via Redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automate-e.fullname" . }}-gateway
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automate-e.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        {{- include "automate-e.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: gateway
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "src/gateway.js"]
+          env:
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: discord-bot-token
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+          volumeMounts:
+            - name: character
+              mountPath: /config
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: character
+          configMap:
+            name: {{ include "automate-e.fullname" . }}-character
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automate-e.fullname" . }}-worker
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.workers.replicas }}
+  selector:
+    matchLabels:
+      {{- include "automate-e.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "automate-e.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: worker
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["node", "src/worker.js"]
+          env:
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: discord-bot-token
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: anthropic-api-key
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: database-url
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+          volumeMounts:
+            - name: character
+              mountPath: /config
+              readOnly: true
+          {{- if .Values.dashboard.enabled }}
+          ports:
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: character
+          configMap:
+            name: {{ include "automate-e.fullname" . }}-character
+{{- end }}
