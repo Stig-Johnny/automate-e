@@ -44,7 +44,7 @@ Agents are defined by a JSON file with personality, tools, and LLM settings:
 }
 ```
 
-See `examples/book-e/` for a complete example.
+See `examples/example-e/` for a complete example.
 
 ## Architecture
 
@@ -70,7 +70,7 @@ helm install my-agent charts/automate-e \
   -f my-character-values.yaml
 ```
 
-Or use raw manifests — see `examples/book-e/` for a full k8s deployment.
+See the [deployment docs](https://stig-johnny.github.io/automate-e/deployment/) for Kubernetes and ArgoCD setup.
 
 ## Dashboard
 
@@ -90,13 +90,14 @@ src/
   index.js          # Single-process mode (Discord + agent in one process)
   gateway.js        # Gateway mode (Discord → Redis)
   worker.js         # Worker mode (Redis → Claude API → Discord REST)
+  test.js           # Test mode (web chat, no Discord required)
   agent.js          # Claude API agent loop with tool calling
   character.js      # Character config loader and validator
   memory.js         # Postgres memory (conversations, facts, patterns)
   usage.js          # Token usage tracking and cost calculation
   dashboard/        # Live monitoring dashboard (HTTP + WebSocket)
 charts/automate-e/  # Helm chart
-examples/book-e/    # Example: Book-E accounting agent for Invotek AS
+examples/example-e/ # Example: simple demo agent
 ```
 
 ## License

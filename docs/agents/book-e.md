@@ -94,7 +94,7 @@ Book-E uses Claude Haiku for cost efficiency (most accounting tasks are pattern 
 
 ## Deployment
 
-Book-E runs as a single-replica Deployment in the `ai-accountant` namespace. The character config is mounted from a ConfigMap. See [Deployment](../deployment.md) for the full manifest.
+Book-E runs in the `automate-e` namespace via Helm chart (gateway + 2 workers). Character config and Helm values are in the [ai-accountant repo](https://github.com/Stig-Johnny/ai-accountant) at `deploy/book-e/values.yaml`. See [Deployment](../deployment.md) for setup.
 
 | Resource | Name |
 |----------|------|

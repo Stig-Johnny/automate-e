@@ -69,7 +69,7 @@ client.on('messageCreate', async (message) => {
       } else {
         try {
           thread = await message.startThread({
-            name: `${message.author.displayName} — ${new Date().toLocaleDateString('nb-NO')}`,
+            name: `${message.author.displayName} — ${new Date().toLocaleDateString('en-US')}`,
             autoArchiveDuration: 1440,
           });
         } catch (err) {
