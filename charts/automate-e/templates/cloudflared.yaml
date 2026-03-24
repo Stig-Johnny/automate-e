@@ -1,0 +1,43 @@
+{{- if .Values.tunnel.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "automate-e.fullname" . }}-cloudflared
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tunnel
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automate-e.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: tunnel
+  template:
+    metadata:
+      labels:
+        {{- include "automate-e.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: tunnel
+    spec:
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest
+          args:
+            - tunnel
+            - --no-autoupdate
+            - run
+            - --token
+            - $(TUNNEL_TOKEN)
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tunnel.tokenSecretName }}
+                  key: token
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 10m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+{{- end }}
