@@ -29,14 +29,20 @@ export function createAgent(character, memory) {
       let response;
       for (let turn = 0; turn < 5; turn++) {
         console.log(`[Automate-E] LLM call turn=${turn}, messages=${messages.length}`);
-        response = await anthropic.messages.create({
-          model: character.llm.model,
-          max_tokens: 1024,
-          temperature: character.llm.temperature,
-          system,
-          tools,
-          messages,
-        });
+        try {
+          response = await anthropic.messages.create({
+            model: character.llm.model,
+            max_tokens: 1024,
+            temperature: character.llm.temperature,
+            system,
+            tools,
+            messages,
+          });
+        } catch (llmError) {
+          console.error(`[Automate-E] LLM error on turn ${turn}:`, llmError.status, llmError.message);
+          throw llmError;
+        }
+        console.log(`[Automate-E] LLM response: stop_reason=${response.stop_reason}, content_blocks=${response.content.length}`);
 
         // Track token usage and cost
         const usageInfo = trackUsage(character.llm.model, response.usage);
