@@ -135,30 +135,3 @@ while (!shuttingDown) {
 console.log('[Worker] Shutdown complete');
 redis.disconnect();
 process.exit(0);
-
-// Send reply directly via Discord REST API (no gateway round-trip)
-const DISCORD_TOKEN = process.env.DISCORD_BOT_TOKEN;
-async function sendDiscordReply(threadId, content, isDM) {
-  let channelId = threadId;
-  if (isDM) {
-    // Create DM channel first
-    const dmRes = await fetch('https://discord.com/api/v10/users/@me/channels', {
-      method: 'POST',
-      headers: { Authorization: `Bot ${DISCORD_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ recipient_id: threadId.replace('dm-', '') }),
-    });
-    const dm = await dmRes.json();
-    channelId = dm.id;
-  }
-
-  const res = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
-    method: 'POST',
-    headers: { Authorization: `Bot ${DISCORD_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Discord API ${res.status}: ${err}`);
-  }
-}
