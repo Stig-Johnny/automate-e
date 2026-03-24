@@ -9,7 +9,6 @@ import Redis from 'ioredis';
 import { loadCharacter } from './character.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
-const STREAM_REPLIES = 'automate-e:replies';
 const MAX_STREAM_LEN = 10000;
 const recentMessageIds = new Set();
 
@@ -23,10 +22,7 @@ if (!redisUrl) {
 }
 
 const redis = new Redis(redisUrl);
-const redisSub = new Redis(redisUrl);
-
 redis.on('error', (err) => console.error('[Gateway] Redis error:', err.message));
-redisSub.on('error', (err) => console.error('[Gateway] Redis sub error:', err.message));
 
 // --- Discord client ---
 const client = new Client({
@@ -43,7 +39,6 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`[Gateway] Logged in as ${client.user.tag}`);
   console.log(`[Gateway] Listening on channels: ${character.discord.channels.join(', ')}`);
-  listenForReplies();
 });
 
 // --- Publish incoming messages to Redis stream ---
@@ -108,69 +103,6 @@ client.on('messageCreate', async (message) => {
   );
 });
 
-// --- Listen for worker replies on Redis stream ---
-async function listenForReplies() {
-  try {
-    await redisSub.xgroup('CREATE', STREAM_REPLIES, 'gateway', '$', 'MKSTREAM');
-  } catch (err) {
-    if (!err.message.includes('BUSYGROUP')) throw err;
-  }
-
-  const consumerId = `gateway-${process.pid}`;
-
-  async function pollReplies() {
-    try {
-      const results = await redisSub.xreadgroup(
-        'GROUP', 'gateway', consumerId,
-        'COUNT', 10,
-        'BLOCK', 2000,
-        'STREAMS', STREAM_REPLIES, '>',
-      );
-
-      if (results) {
-        for (const [, entries] of results) {
-          for (const [id, fields] of entries) {
-            try {
-              const reply = JSON.parse(fields[1]);
-              console.log(`[Gateway] Delivering reply entry ${id} to ${reply.threadId}`);
-              await deliverReply(reply);
-            } catch (err) {
-              console.error('[Gateway] Failed to deliver reply:', err.message);
-            }
-            await redisSub.xack(STREAM_REPLIES, 'gateway', id);
-          }
-        }
-      }
-    } catch (err) {
-      console.error('[Gateway] Reply listener error:', err.message);
-    }
-    // Yield to event loop, then poll again
-    setTimeout(pollReplies, 100);
-  }
-
-  pollReplies();
-}
-
-async function deliverReply(reply) {
-  const { threadId, content, isDM } = reply;
-
-  if (isDM) {
-    const userId = threadId.replace('dm-', '');
-    const user = await client.users.fetch(userId);
-    const dmChannel = await user.createDM();
-    await dmChannel.send(content);
-  } else {
-    const channel = await client.channels.fetch(threadId);
-    if (channel) {
-      await channel.send(content);
-    } else {
-      console.error(`[Gateway] Could not find channel ${threadId}`);
-    }
-  }
-
-  console.log(`[Gateway] Delivered reply to ${threadId}`);
-}
-
 // --- Graceful shutdown ---
 let shuttingDown = false;
 for (const signal of ['SIGTERM', 'SIGINT']) {
@@ -180,7 +112,6 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
     console.log(`[Gateway] ${signal} received, shutting down...`);
     client.destroy();
     redis.disconnect();
-    redisSub.disconnect();
     process.exit(0);
   });
 }
