@@ -74,6 +74,11 @@ spec:
           imagePullPolicy: Always
           command: ["node", "src/worker.js"]
           env:
+            - name: DISCORD_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: book-e-secrets
+                  key: discord-bot-token
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
