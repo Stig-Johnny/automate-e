@@ -35,6 +35,7 @@ redisSub.on('message', (channel, message) => {
     const event = JSON.parse(message);
     if (event.type === 'log') dashboard.addLog(event.data.level, event.data.message);
     if (event.type === 'toolCall') dashboard.addToolCall(event.data.name, event.data.status, event.data.latencyMs);
+    if (event.type === 'usage' && dashboard.setWorkerUsage) dashboard.setWorkerUsage(event.data);
   } catch {}
 });
 

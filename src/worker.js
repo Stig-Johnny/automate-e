@@ -55,6 +55,9 @@ const dashboard = {
     redis.publish(DASHBOARD_CHANNEL, JSON.stringify({ type: 'toolCall', data: { name, status, latencyMs, timestamp: new Date().toISOString() } })).catch(() => {});
   },
   updateSession() {},
+  updateUsage(stats) {
+    redis.publish(DASHBOARD_CHANNEL, JSON.stringify({ type: 'usage', data: stats })).catch(() => {});
+  },
 };
 
 // Send reply directly via Discord REST API (no gateway round-trip)
