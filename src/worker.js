@@ -104,6 +104,16 @@ while (!shuttingDown) {
       for (const [id, fields] of entries) {
         try {
           const msg = JSON.parse(fields[1]);
+
+          // Acquire lock to prevent duplicate processing by multiple workers
+          const lockKey = `lock:${id}`;
+          const locked = await redis.set(lockKey, consumerId, 'NX', 'EX', 300);
+          if (!locked) {
+            console.log(`[Worker] Skipping ${id} — already claimed by another worker`);
+            await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
+            continue;
+          }
+
           console.log(`[Worker] Processing stream entry ${id} from ${msg.authorName} (thread: ${msg.threadId})`);
 
           const response = await agent.process(msg.messageContent, {
