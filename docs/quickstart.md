@@ -129,13 +129,21 @@ Here's a working example using [wttr.in](https://wttr.in) (free, no API key need
         {
           "method": "GET",
           "path": "/London",
-          "description": "Get current weather for London in plain text format. Add ?format=j1 as query for JSON."
+          "description": "Get current weather for a city. Replace 'London' in the path with any city name. Add ?format=j1 as query for JSON."
+        },
+        {
+          "method": "GET",
+          "path": "/Oslo",
+          "description": "Get current weather for Oslo."
         }
       ]
     }
   ]
 }
 ```
+
+!!! tip
+    Each endpoint is a fixed path. To support multiple cities, add one endpoint per city, or describe in the tool description how to modify the query parameters.
 
 Try asking your agent "What's the weather in London?" — it will call the tool and summarize the result.
 

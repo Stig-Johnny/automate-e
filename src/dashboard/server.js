@@ -12,6 +12,7 @@ const state = {
   character: null,
   sessions: new Map(),    // threadId → {lastMessage, messageCount, startedAt}
   toolCalls: [],          // [{name, timestamp, status, latencyMs}] — last 100
+  workerUsage: null,      // Usage stats from workers (via Redis pub/sub)
   logs: [],               // [{level, message, timestamp}] — last 500
   startedAt: new Date(),
 };
@@ -37,7 +38,7 @@ export function createDashboard(character, memory) {
         logs: state.logs.slice(-50),
         uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
         memoryType: memory ? 'postgres' : 'in-memory',
-        usage: getUsageStats(),
+        usage: state.workerUsage || getUsageStats(),
       }));
     } else if (req.url === '/api/usage') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -69,7 +70,7 @@ export function createDashboard(character, memory) {
     console.log(`[Automate-E] Dashboard running on http://0.0.0.0:${port}`);
   });
 
-  return { addLog, addToolCall, updateSession };
+  return { addLog, addToolCall, updateSession, setWorkerUsage };
 }
 
 function broadcast(event) {
@@ -97,4 +98,8 @@ export function updateSession(threadId, data) {
   const existing = state.sessions.get(threadId) || { messageCount: 0, startedAt: new Date().toISOString() };
   state.sessions.set(threadId, { ...existing, ...data, messageCount: existing.messageCount + 1, lastMessage: new Date().toISOString() });
   broadcast({ type: 'session', data: { threadId, ...state.sessions.get(threadId) } });
+}
+
+export function setWorkerUsage(usage) {
+  state.workerUsage = usage;
 }
