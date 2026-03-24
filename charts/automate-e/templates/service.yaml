@@ -8,6 +8,9 @@ metadata:
 spec:
   selector:
     {{- include "automate-e.selectorLabels" . | nindent 4 }}
+    {{- if eq .Values.mode "split" }}
+    app.kubernetes.io/component: gateway
+    {{- end }}
   ports:
     - name: dashboard
       port: {{ .Values.dashboard.port }}

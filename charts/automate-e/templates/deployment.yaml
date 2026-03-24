@@ -98,6 +98,11 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+          {{- if .Values.dashboard.enabled }}
+          ports:
+            - name: dashboard
+              containerPort: {{ .Values.dashboard.port }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
@@ -155,11 +160,6 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
-          {{- if .Values.dashboard.enabled }}
-          ports:
-            - name: dashboard
-              containerPort: {{ .Values.dashboard.port }}
-          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
