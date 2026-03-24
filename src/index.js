@@ -63,12 +63,24 @@ client.on('messageCreate', async (message) => {
 
       await message.reply(response);
     } else {
-      const thread = message.hasThread
-        ? message.thread
-        : await message.startThread({
+      let thread;
+      if (message.hasThread) {
+        thread = message.thread;
+      } else {
+        try {
+          thread = await message.startThread({
             name: `${message.author.displayName} — ${new Date().toLocaleDateString('nb-NO')}`,
             autoArchiveDuration: 1440,
           });
+        } catch (err) {
+          if (err.code === 160004) {
+            // Thread already exists for this message — fetch it
+            thread = await message.fetch().then(m => m.thread);
+          } else {
+            throw err;
+          }
+        }
+      }
 
       await thread.sendTyping();
       dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
