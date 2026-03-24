@@ -109,34 +109,36 @@ async function listenForReplies() {
 
   const consumerId = `gateway-${process.pid}`;
 
-  while (true) {
+  async function pollReplies() {
     try {
       const results = await redisSub.xreadgroup(
         'GROUP', 'gateway', consumerId,
         'COUNT', 10,
-        'BLOCK', 5000,
+        'BLOCK', 2000,
         'STREAMS', STREAM_REPLIES, '>',
       );
 
-      if (!results) continue;
-
-      for (const [, entries] of results) {
-        for (const [id, fields] of entries) {
-          try {
-            const reply = JSON.parse(fields[1]);
-            await deliverReply(reply);
-          } catch (err) {
-            console.error('[Gateway] Failed to deliver reply:', err.message);
+      if (results) {
+        for (const [, entries] of results) {
+          for (const [id, fields] of entries) {
+            try {
+              const reply = JSON.parse(fields[1]);
+              await deliverReply(reply);
+            } catch (err) {
+              console.error('[Gateway] Failed to deliver reply:', err.message);
+            }
+            await redisSub.xack(STREAM_REPLIES, 'gateway', id);
           }
-          // Always ack — failed deliveries are logged, not retried indefinitely
-          await redisSub.xack(STREAM_REPLIES, 'gateway', id);
         }
       }
     } catch (err) {
       console.error('[Gateway] Reply listener error:', err.message);
-      await new Promise(r => setTimeout(r, 1000));
     }
+    // Yield to event loop, then poll again
+    setTimeout(pollReplies, 100);
   }
+
+  pollReplies();
 }
 
 async function deliverReply(reply) {
