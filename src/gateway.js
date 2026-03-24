@@ -10,6 +10,7 @@ import { loadCharacter } from './character.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
 const STREAM_REPLIES = 'automate-e:replies';
+const MAX_STREAM_LEN = 10000;
 
 const character = loadCharacter();
 
@@ -60,30 +61,27 @@ client.on('messageCreate', async (message) => {
     if (!character.discord.channels.includes(channelName)) return;
   }
 
-  // For guild messages, create/reuse a thread
   let threadId;
-  let replyTarget; // channel or thread to send typing indicator and replies to
+  const displayName = message.member?.displayName || message.author.displayName || message.author.username;
 
   if (isDM) {
     threadId = `dm-${message.author.id}`;
-    replyTarget = message.channel;
     await message.channel.sendTyping();
   } else {
     const thread = message.hasThread
       ? message.thread
       : await message.startThread({
-          name: `${message.author.displayName} — ${new Date().toLocaleDateString('nb-NO')}`,
+          name: `${displayName} — ${new Date().toLocaleDateString('nb-NO')}`,
           autoArchiveDuration: 1440,
         });
     threadId = thread.id;
-    replyTarget = thread;
     await thread.sendTyping();
   }
 
   const payload = {
     messageContent: message.content,
     authorId: message.author.id,
-    authorName: message.author.displayName || message.author.username,
+    authorName: displayName,
     channelId: message.channel.id,
     threadId,
     attachments: [...message.attachments.values()].map(a => ({
@@ -91,22 +89,20 @@ client.on('messageCreate', async (message) => {
     })),
     isDM,
     guildId: message.guild?.id || null,
-    // For DM replies, we store the message id so we can reply to it
     messageId: message.id,
   };
 
   console.log(`[Gateway] Publishing message from ${payload.authorName} (thread: ${threadId})`);
 
-  await redis.xadd(STREAM_MESSAGES, '*',
+  await redis.xadd(STREAM_MESSAGES, 'MAXLEN', '~', MAX_STREAM_LEN, '*',
     'payload', JSON.stringify(payload),
   );
 });
 
 // --- Listen for worker replies on Redis stream ---
 async function listenForReplies() {
-  // Create consumer group if it doesn't exist
   try {
-    await redisSub.xgroup('CREATE', STREAM_REPLIES, 'gateway', '0', 'MKSTREAM');
+    await redisSub.xgroup('CREATE', STREAM_REPLIES, 'gateway', '$', 'MKSTREAM');
   } catch (err) {
     if (!err.message.includes('BUSYGROUP')) throw err;
   }
@@ -127,12 +123,13 @@ async function listenForReplies() {
       for (const [, entries] of results) {
         for (const [id, fields] of entries) {
           try {
-            const reply = JSON.parse(fields[1]); // fields = ['payload', '...']
+            const reply = JSON.parse(fields[1]);
             await deliverReply(reply);
-            await redisSub.xack(STREAM_REPLIES, 'gateway', id);
           } catch (err) {
             console.error('[Gateway] Failed to deliver reply:', err.message);
           }
+          // Always ack — failed deliveries are logged, not retried indefinitely
+          await redisSub.xack(STREAM_REPLIES, 'gateway', id);
         }
       }
     } catch (err) {
@@ -146,13 +143,11 @@ async function deliverReply(reply) {
   const { threadId, content, isDM } = reply;
 
   if (isDM) {
-    // DM thread IDs are dm-{userId}
     const userId = threadId.replace('dm-', '');
     const user = await client.users.fetch(userId);
     const dmChannel = await user.createDM();
     await dmChannel.send(content);
   } else {
-    // threadId is a Discord thread/channel ID
     const channel = await client.channels.fetch(threadId);
     if (channel) {
       await channel.send(content);
@@ -165,12 +160,17 @@ async function deliverReply(reply) {
 }
 
 // --- Graceful shutdown ---
-process.on('SIGTERM', async () => {
-  console.log('[Gateway] Shutting down...');
-  client.destroy();
-  redis.disconnect();
-  redisSub.disconnect();
-  process.exit(0);
-});
+let shuttingDown = false;
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Gateway] ${signal} received, shutting down...`);
+    client.destroy();
+    redis.disconnect();
+    redisSub.disconnect();
+    process.exit(0);
+  });
+}
 
 client.login(process.env.DISCORD_BOT_TOKEN);

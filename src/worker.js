@@ -15,13 +15,13 @@ import { createMemory } from './memory.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
 const STREAM_REPLIES = 'automate-e:replies';
+const MAX_STREAM_LEN = 10000;
 const GROUP_NAME = 'workers';
 
 const character = loadCharacter();
 const memory = await createMemory();
 const agent = createAgent(character, memory);
 
-// Minimal dashboard stub for worker mode (agent.process expects dashboard callbacks)
 const dashboard = {
   addLog(level, message) {
     console.log(`[Worker] [${level}] ${message}`);
@@ -29,9 +29,7 @@ const dashboard = {
   addToolCall(name, status, latencyMs) {
     console.log(`[Worker] Tool: ${name} ${status} (${latencyMs}ms)`);
   },
-  updateSession(threadId, data) {
-    // no-op in worker mode
-  },
+  updateSession() {},
 };
 
 // --- Redis ---
@@ -46,9 +44,8 @@ redis.on('error', (err) => console.error('[Worker] Redis error:', err.message));
 
 const consumerId = `worker-${process.pid}-${Date.now()}`;
 
-// Create consumer group if it doesn't exist
 try {
-  await redis.xgroup('CREATE', STREAM_MESSAGES, GROUP_NAME, '0', 'MKSTREAM');
+  await redis.xgroup('CREATE', STREAM_MESSAGES, GROUP_NAME, '$', 'MKSTREAM');
   console.log(`[Worker] Created consumer group '${GROUP_NAME}'`);
 } catch (err) {
   if (!err.message.includes('BUSYGROUP')) throw err;
@@ -56,8 +53,19 @@ try {
 
 console.log(`[Worker] Started (consumer: ${consumerId}), character: ${character.name}`);
 
+// --- Graceful shutdown ---
+let shuttingDown = false;
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`[Worker] ${signal} received, finishing current work...`);
+    // Let the current iteration finish, then exit
+  });
+}
+
 // --- Main consume loop ---
-while (true) {
+while (!shuttingDown) {
   try {
     const results = await redis.xreadgroup(
       'GROUP', GROUP_NAME, consumerId,
@@ -71,7 +79,7 @@ while (true) {
     for (const [, entries] of results) {
       for (const [id, fields] of entries) {
         try {
-          const msg = JSON.parse(fields[1]); // fields = ['payload', '...']
+          const msg = JSON.parse(fields[1]);
           console.log(`[Worker] Processing message from ${msg.authorName} (thread: ${msg.threadId})`);
 
           const response = await agent.process(msg.messageContent, {
@@ -82,23 +90,21 @@ while (true) {
             attachments: msg.attachments || [],
           }, dashboard);
 
-          // Publish reply back for gateway to deliver
           const reply = {
             threadId: msg.threadId,
             content: response,
             isDM: msg.isDM,
           };
 
-          await redis.xadd(STREAM_REPLIES, '*',
+          await redis.xadd(STREAM_REPLIES, 'MAXLEN', '~', MAX_STREAM_LEN, '*',
             'payload', JSON.stringify(reply),
           );
 
-          // Acknowledge the message
           await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
           console.log(`[Worker] Replied to ${msg.threadId}`);
         } catch (err) {
           console.error('[Worker] Error processing message:', err.message);
-          // Still ack to avoid infinite retry — log the error
+          // Ack to prevent infinite retry — error is logged
           await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
         }
       }
@@ -108,3 +114,7 @@ while (true) {
     await new Promise(r => setTimeout(r, 1000));
   }
 }
+
+console.log('[Worker] Shutdown complete');
+redis.disconnect();
+process.exit(0);
