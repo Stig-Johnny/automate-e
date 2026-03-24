@@ -1,0 +1,65 @@
+{{- if and .Values.redis.enabled .Values.redis.deploy }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "automate-e.fullname" . }}-redis
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  serviceName: {{ include "automate-e.fullname" . }}-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "automate-e.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "automate-e.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args: ["--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+          resources:
+            requests:
+              memory: 64Mi
+              cpu: 50m
+            limits:
+              memory: 128Mi
+              cpu: 200m
+          volumeMounts:
+            - name: data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- if .Values.redis.storageClass }}
+        storageClassName: {{ .Values.redis.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.redis.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "automate-e.fullname" . }}-redis
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  selector:
+    {{- include "automate-e.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+  clusterIP: None
+{{- end }}

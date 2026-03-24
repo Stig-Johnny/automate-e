@@ -1,19 +1,28 @@
-replicaCount: 1
+# Single-process mode (default) or gateway+worker mode (set redis.enabled: true)
+mode: single  # "single" or "split"
 
 image:
   repository: ghcr.io/stig-johnny/automate-e
   tag: latest
   pullPolicy: Always
 
-imagePullSecrets:
-  - name: ghcr-pull-secret
+imagePullSecrets: []
 
 # Inline character.json — the agent's personality, tools, and config
 character: {}
 
+# Gateway+worker mode: enable Redis for message queue
 redis:
   enabled: false
   url: ""
+  # Deploy a Redis instance alongside the agent
+  deploy: false
+  storage: 1Gi
+  storageClass: ""
+
+# Worker replicas (only used in split mode)
+workers:
+  replicas: 2
 
 dashboard:
   enabled: true
@@ -24,7 +33,7 @@ tunnel:
   tokenSecretName: ""
   hostname: ""
 
-# Set existingSecret to use a pre-created secret, or provide values inline
+# Use existingSecret to reference a pre-created secret, or provide values inline
 secrets:
   existingSecret: ""
   discordBotToken: ""
