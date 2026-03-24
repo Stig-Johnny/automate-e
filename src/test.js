@@ -14,6 +14,11 @@ import { createMemory } from './memory.js';
 import { getUsageStats, getUsageSummary } from './usage.js';
 
 const character = loadCharacter();
+
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn('[Automate-E] WARNING: ANTHROPIC_API_KEY not set — API calls will fail');
+}
+
 const memory = await createMemory();
 const agent = createAgent(character, memory);
 

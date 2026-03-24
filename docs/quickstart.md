@@ -37,26 +37,38 @@ Create a file called `character.json` in the project root:
     "channels": ["#general"]
   },
   "llm": {
-    "model": "claude-haiku-4-5-20251001",
+    "model": "claude-haiku-4-5",
     "temperature": 0.5
   }
 }
 ```
 
-This is all you need. The `personality` field is the system prompt. `lore` adds background knowledge.
+This is all you need:
+
+- `personality` — the system prompt that defines how the agent behaves
+- `lore` — background facts the agent knows (injected into the system prompt as bullet points)
+- `tools` — HTTP APIs the agent can call (empty for now, we'll add some in Step 5)
 
 ## Step 3: Try It (Test Mode)
 
-Test mode gives you a web chat interface -- no Discord bot needed:
+Test mode gives you a web chat interface — no Discord bot needed. Run this in your terminal:
 
 ```bash
-export CHARACTER_FILE=./character.json
-export ANTHROPIC_API_KEY=sk-ant-...your-key...
-
-npm test
+CHARACTER_FILE=./character.json ANTHROPIC_API_KEY=sk-ant-...your-key... npm test
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser. You'll see a chat interface with a sidebar showing token usage and logs.
+!!! tip "All on one line"
+    The env vars and command must be in the same line (or exported in the same shell session). Replace `sk-ant-...your-key...` with your actual Anthropic API key.
+
+You should see:
+
+```
+[Automate-E] Loaded character: My-Agent
+[Automate-E] My-Agent test mode running at http://localhost:3000
+[Automate-E] No Discord — chat via the web interface
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser. Type a message and hit Send — your agent responds using Claude. The sidebar shows token usage and logs in real-time.
 
 ![Test Mode](images/test-mode.png)
 
@@ -106,21 +118,18 @@ The agent connects to Discord, listens on the channels defined in `character.jso
 
 Give your agent access to any HTTP API. Add entries to the `tools` array in `character.json`:
 
+Here's a working example using [wttr.in](https://wttr.in) (free, no API key needed):
+
 ```json
 {
   "tools": [
     {
-      "url": "https://api.example.com",
+      "url": "https://wttr.in",
       "endpoints": [
         {
           "method": "GET",
-          "path": "/weather",
-          "description": "Get current weather for a city. Pass city name as query parameter."
-        },
-        {
-          "method": "POST",
-          "path": "/notes",
-          "description": "Save a note. Send JSON body with 'title' and 'content' fields."
+          "path": "/London",
+          "description": "Get current weather for London in plain text format. Add ?format=j1 as query for JSON."
         }
       ]
     }
@@ -128,7 +137,9 @@ Give your agent access to any HTTP API. Add entries to the `tools` array in `cha
 }
 ```
 
-Claude sees these as callable tools and invokes them when relevant to the conversation. Each endpoint becomes a tool the agent can use.
+Try asking your agent "What's the weather in London?" — it will call the tool and summarize the result.
+
+Each endpoint in `character.json` becomes a tool that Claude can call. You can point to any HTTP API your agent needs.
 
 ## Step 6: Add Memory (Optional)
 
@@ -163,6 +174,12 @@ docker run -d --name my-agent \
 
 ## Troubleshooting
 
+**"EADDRINUSE: port 3000 already in use"**
+: Another process is using port 3000. Use a different port: `PORT=3001 CHARACTER_FILE=./character.json ANTHROPIC_API_KEY=... npm test`
+
+**API calls fail with "Error" in chat**
+: Check that `ANTHROPIC_API_KEY` is set correctly. The agent starts without it, but API calls will fail when you send a message.
+
 **"An invalid token was provided"**
 : Your Discord bot token is wrong or expired. Go to the Developer Portal, reset the token, and copy the new one.
 
@@ -177,6 +194,9 @@ docker run -d --name my-agent \
 
 **"429 Too Many Requests" from Anthropic**
 : You've hit the API rate limit. Wait a minute and try again, or upgrade your Anthropic plan.
+
+**npm audit shows vulnerabilities**
+: Known issue with `discord.js` dependency (`undici`). Not a risk for local development. For production, monitor and update when fixes are released.
 
 ## Next Steps
 

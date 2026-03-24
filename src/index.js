@@ -17,6 +17,10 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel],
 });
 
+if (!process.env.ANTHROPIC_API_KEY) {
+  console.warn('[Automate-E] WARNING: ANTHROPIC_API_KEY not set — API calls will fail');
+}
+
 const memory = await createMemory();
 const agent = createAgent(character, memory);
 const dashboard = createDashboard(character, memory);
