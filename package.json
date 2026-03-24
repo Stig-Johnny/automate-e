@@ -6,11 +6,14 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:gateway": "node src/gateway.js",
+    "start:worker": "node src/worker.js",
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "discord.js": "^14.18.0",
+    "ioredis": "^5.6.0",
     "pg": "^8.13.0",
     "ws": "^8.20.0"
   },
