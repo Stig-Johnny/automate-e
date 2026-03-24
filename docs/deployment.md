@@ -133,13 +133,16 @@ metadata:
   namespace: argocd
 spec:
   project: default
-  source:
-    repoURL: https://github.com/Stig-Johnny/automate-e.git
-    targetRevision: HEAD
-    path: charts/automate-e
-    helm:
-      valueFiles:
-        - ../../examples/book-e/values.yaml
+  sources:
+    - repoURL: https://github.com/Stig-Johnny/automate-e.git
+      targetRevision: HEAD
+      path: charts/automate-e
+      helm:
+        valueFiles:
+          - $values/deploy/my-agent/values.yaml
+    - repoURL: https://github.com/your-org/your-config-repo.git
+      targetRevision: HEAD
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: automate-e
