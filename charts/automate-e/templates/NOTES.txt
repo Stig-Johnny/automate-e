@@ -1,0 +1,18 @@
+Automate-E agent deployed: {{ .Release.Name }}
+
+{{- if .Values.dashboard.enabled }}
+
+Dashboard:
+  kubectl port-forward svc/{{ include "automate-e.fullname" . }} {{ .Values.dashboard.port }}:{{ .Values.dashboard.port }}
+  Then open http://localhost:{{ .Values.dashboard.port }}
+{{- end }}
+
+{{- if .Values.tunnel.enabled }}
+
+Tunnel: https://{{ .Values.tunnel.hostname }}
+{{- end }}
+
+{{- if not .Values.secrets.existingSecret }}
+
+Secrets created from values. For production, use existingSecret instead.
+{{- end }}
