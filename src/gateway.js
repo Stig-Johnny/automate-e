@@ -7,12 +7,14 @@
 import { Client, GatewayIntentBits, Partials, ChannelType } from 'discord.js';
 import Redis from 'ioredis';
 import { loadCharacter } from './character.js';
+import { createDashboard } from './dashboard/server.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
 const MAX_STREAM_LEN = 10000;
 const recentMessageIds = new Set();
 
 const character = loadCharacter();
+const dashboard = createDashboard(character);
 
 // --- Redis ---
 const redisUrl = process.env.REDIS_URL;
@@ -39,6 +41,7 @@ const client = new Client({
 client.once('ready', () => {
   console.log(`[Gateway] Logged in as ${client.user.tag}`);
   console.log(`[Gateway] Listening on channels: ${character.discord.channels.join(', ')}`);
+  dashboard.addLog('info', `Logged in as ${client.user.tag}`);
 });
 
 // --- Publish incoming messages to Redis stream ---
@@ -108,6 +111,8 @@ client.on('messageCreate', async (message) => {
   };
 
   console.log(`[Gateway] Publishing message from ${payload.authorName} (thread: ${threadId})`);
+  dashboard.addLog('info', `Message from ${payload.authorName}: ${payload.messageContent.slice(0, 80)}`);
+  dashboard.updateSession(threadId, { user: payload.authorName, type: isDM ? 'dm' : 'thread' });
 
   await redis.xadd(STREAM_MESSAGES, 'MAXLEN', '~', MAX_STREAM_LEN, '*',
     'payload', JSON.stringify(payload),
