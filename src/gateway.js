@@ -132,6 +132,7 @@ async function listenForReplies() {
           for (const [id, fields] of entries) {
             try {
               const reply = JSON.parse(fields[1]);
+              console.log(`[Gateway] Delivering reply entry ${id} to ${reply.threadId}`);
               await deliverReply(reply);
             } catch (err) {
               console.error('[Gateway] Failed to deliver reply:', err.message);

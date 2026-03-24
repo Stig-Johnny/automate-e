@@ -80,7 +80,7 @@ while (!shuttingDown) {
       for (const [id, fields] of entries) {
         try {
           const msg = JSON.parse(fields[1]);
-          console.log(`[Worker] Processing message from ${msg.authorName} (thread: ${msg.threadId})`);
+          console.log(`[Worker] Processing stream entry ${id} from ${msg.authorName} (thread: ${msg.threadId})`);
 
           const response = await agent.process(msg.messageContent, {
             userId: msg.authorId,
@@ -101,7 +101,7 @@ while (!shuttingDown) {
           );
 
           await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
-          console.log(`[Worker] Replied to ${msg.threadId}`);
+          console.log(`[Worker] Replied to ${msg.threadId} (acked ${id})`);
         } catch (err) {
           console.error('[Worker] Error processing message:', err.message);
           // Ack to prevent infinite retry — error is logged
