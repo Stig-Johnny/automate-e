@@ -28,6 +28,7 @@ export function createAgent(character, memory) {
       // Agent loop (max 5 tool calls)
       let response;
       for (let turn = 0; turn < 5; turn++) {
+        console.log(`[Automate-E] LLM call turn=${turn}, messages=${messages.length}`);
         response = await anthropic.messages.create({
           model: character.llm.model,
           max_tokens: 1024,
