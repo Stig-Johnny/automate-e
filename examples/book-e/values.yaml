@@ -97,6 +97,10 @@ character:
     provider: anthropic
     model: claude-haiku-4-5-20251001
     temperature: 0.3
+  style:
+    language: Norwegian
+    tone: helpful
+    format: concise
 redis:
   enabled: true
   url: redis://automate-e-redis:6379
@@ -121,4 +125,3 @@ resources:
   limits:
     memory: 256Mi
     cpu: 500m
-
