@@ -24,6 +24,8 @@ Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `char
 | **Helm chart** | Deploy single-process or gateway+worker mode via Helm |
 | **Split mode** | Gateway + Redis Streams + workers for horizontal scaling |
 
+![Example-E in Discord](images/example-e-discord.png)
+
 ## How It Works
 
 ```mermaid

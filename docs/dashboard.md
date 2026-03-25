@@ -6,6 +6,8 @@ title: Dashboard
 
 Automate-E includes a built-in web dashboard for monitoring agent activity in real time.
 
+![Dashboard](images/dashboard.png)
+
 ## Features
 
 | Feature | Description |
