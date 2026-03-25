@@ -21,13 +21,25 @@ const state = {
 // WebSocket clients for live updates
 const wsClients = new Set();
 
-export function createDashboard(character, memory) {
+export function createDashboard(character, memory, { webhookHandler } = {}) {
   state.character = character;
   state.memoryType = process.env.DATABASE_URL ? 'postgres' : 'in-memory';
 
   const html = readFileSync(join(__dirname, 'index.html'), 'utf-8');
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
+    // Webhook endpoints: POST /webhook/{source}
+    const webhookMatch = req.method === 'POST' && req.url?.match(/^\/webhook\/(\w+)/);
+    if (webhookMatch && webhookHandler) {
+      try {
+        await webhookHandler(req, res, webhookMatch[1]);
+      } catch (err) {
+        console.error('[Webhook] Error:', err.message);
+        if (!res.headersSent) { res.writeHead(500); res.end('Internal error'); }
+      }
+      return;
+    }
+
     if (req.url === '/' || req.url === '/dashboard') {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(html);
