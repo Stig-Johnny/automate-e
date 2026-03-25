@@ -52,7 +52,5 @@ nav:
     - Dashboard: dashboard.md
     - Memory: memory.md
     - Usage Tracking: usage-tracking.md
-  - Agents:
-    - Book-E: agents/book-e.md
 
 strict: true
