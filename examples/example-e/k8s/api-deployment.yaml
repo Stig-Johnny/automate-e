@@ -18,6 +18,7 @@ spec:
       containers:
         - name: api
           image: ghcr.io/stig-johnny/example-e-api:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           resources:

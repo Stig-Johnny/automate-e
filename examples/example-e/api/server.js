@@ -44,13 +44,13 @@ const server = http.createServer((req, res) => {
       : quotes;
     json(res, filtered);
   } else if (req.method === 'GET' && url.pathname === '/facts/random') {
-    const category = url.searchParams.get('category');
+    const category = url.searchParams.get('category')?.toLowerCase().trim();
     const pool = category
       ? facts.filter(f => f.category === category)
       : facts;
-    json(res, pool.length ? randomItem(pool) : { error: 'No facts for that category' });
+    if (!pool.length) return json(res, { error: 'No facts for that category. Valid categories: tech, space, nature' }, 404);
   } else if (req.method === 'GET' && url.pathname === '/facts') {
-    const category = url.searchParams.get('category');
+    const category = url.searchParams.get('category')?.toLowerCase().trim();
     const filtered = category
       ? facts.filter(f => f.category === category)
       : facts;

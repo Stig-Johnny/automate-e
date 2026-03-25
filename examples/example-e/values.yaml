@@ -27,13 +27,13 @@ character:
           description: "Get a random inspiring quote"
         - method: GET
           path: /quotes
-          description: "List all quotes, optionally filter by author name via ?author= query parameter"
+          description: "List all quotes, optionally filter by author name via author= query parameter"
         - method: GET
           path: /facts/random
-          description: "Get a random fun fact, optionally filter by category via ?category= query parameter (tech, space, nature)"
+          description: "Get a random fun fact, optionally filter by category via category= query parameter (tech, space, nature)"
         - method: GET
           path: /facts
-          description: "List all facts, optionally filter by category via ?category= query parameter"
+          description: "List all facts, optionally filter by category via category= query parameter"
         - method: GET
           path: /facts/categories
           description: "List available fact categories"
