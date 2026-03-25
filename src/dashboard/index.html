@@ -37,6 +37,11 @@
   .ws-status { font-size: 11px; padding: 2px 6px; border-radius: 8px; }
   .ws-connected { color: #7ee787; background: #1a2e1a; }
   .ws-disconnected { color: #f85149; background: #2e1a1a; }
+  .mcp-badge { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: #1f2a3d; color: #58a6ff; margin-left: 6px; }
+  .mcp-status { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+  .mcp-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+  .mcp-dot.connected { background: #7ee787; }
+  .mcp-dot.disconnected { background: #f85149; }
 </style>
 </head>
 <body>
@@ -81,6 +86,13 @@
     <div class="card-header">Stats</div>
     <div class="card-body" id="stats">
       <div class="empty">Loading...</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">MCP Servers</div>
+    <div class="card-body" id="mcp">
+      <div class="empty">No MCP servers configured</div>
     </div>
   </div>
 
@@ -138,6 +150,9 @@ function renderInit(data) {
   // Usage
   if (data.usage) renderUsage(data.usage);
 
+  // MCP servers
+  if (data.mcpServers) renderMcpServers(data.mcpServers);
+
   // Sessions
   const sessions = Object.entries(data.sessions || {});
   if (sessions.length) {
@@ -171,9 +186,11 @@ function appendToolCall(entry) {
   const el = document.getElementById('tools');
   if (el.querySelector('.empty')) el.innerHTML = '';
   const statusClass = entry.status === 'ok' ? 'tool-ok' : 'tool-fail';
+  const isMcp = entry.name?.startsWith('mcp_');
+  const badge = isMcp ? '<span class="mcp-badge">MCP</span>' : '';
   toolCallCount++;
   if (entry.status !== 'ok') toolErrorCount++;
-  el.innerHTML = `<div class="tool-entry"><span class="tool-name">${entry.name}</span><span class="${statusClass}">${entry.status}</span><span class="tool-ms">${entry.latencyMs || '-'}ms</span><span class="time" style="color:#484f58">${entry.timestamp?.slice(11,19) || ''}</span></div>` + el.innerHTML;
+  el.innerHTML = `<div class="tool-entry"><span class="tool-name">${entry.name}${badge}</span><span class="${statusClass}">${entry.status}</span><span class="tool-ms">${entry.latencyMs || '-'}ms</span><span class="time" style="color:#484f58">${entry.timestamp?.slice(11,19) || ''}</span></div>` + el.innerHTML;
   updateStats();
 }
 
@@ -213,6 +230,14 @@ function renderUsage(u) {
   `;
 }
 
+function renderMcpServers(servers) {
+  const entries = Object.entries(servers || {});
+  if (!entries.length) return;
+  document.getElementById('mcp').innerHTML = entries.map(([name, info]) =>
+    `<div class="mcp-status"><span><span class="mcp-dot ${info.status}"></span>${name}</span><span style="color:#8b949e">${info.toolCount} tools</span></div>`
+  ).join('');
+}
+
 function formatUptime(seconds) {
   if (!seconds) return '--';
   const h = Math.floor(seconds / 3600);
@@ -231,6 +256,7 @@ setInterval(async () => {
     const data = await res.json();
     document.getElementById('uptime').textContent = formatUptime(data.uptime);
     if (data.usage) renderUsage(data.usage);
+    if (data.mcpServers) renderMcpServers(data.mcpServers);
   } catch {}
 }, 10000);
 

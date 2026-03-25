@@ -50,8 +50,15 @@ export async function connectMcpServers(mcpServers = {}) {
     }
   }
 
+  // Build status summary for dashboard
+  const serverStatus = {};
+  for (const [name, entry] of clients) {
+    serverStatus[name] = { status: 'connected', toolCount: entry.toolNames.length };
+  }
+
   return {
     tools,
+    serverStatus,
 
     async callTool(prefixedName, args) {
       const serverName = toolMap.get(prefixedName);

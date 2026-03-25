@@ -26,6 +26,7 @@ const memory = await createMemory();
 const mcpClients = await connectMcpServers(character.mcpServers);
 const agent = createAgent(character, memory, mcpClients);
 const dashboard = createDashboard(character, memory);
+if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
 
 client.once('ready', () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);
