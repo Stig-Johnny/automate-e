@@ -6,6 +6,65 @@ title: Architecture
 
 How the Automate-E runtime turns a `character.json` into a running Discord agent.
 
+## Runtime vs Agent vs Tool APIs
+
+Automate-E has three distinct layers. Understanding this separation is key to deploying your own agents.
+
+```mermaid
+graph TB
+    subgraph "Layer 1: Runtime (shared)"
+        RT["automate-e<br/>ghcr.io/stig-johnny/automate-e<br/><i>Generic engine — same image for every agent</i>"]
+    end
+
+    subgraph "Layer 2: Agent Config (per agent)"
+        CE["character.json + values.yaml<br/><i>Personality, tools, Discord channel, model</i>"]
+        CB["character.json + values.yaml<br/><i>Different personality, tools, channel, model</i>"]
+    end
+
+    subgraph "Layer 3: Tool APIs (per agent, optional)"
+        AE["Example-E API<br/>ghcr.io/stig-johnny/example-e-api<br/><i>Quotes + facts endpoints</i>"]
+        AB["Your Backend API<br/><i>Any HTTP service in any language</i>"]
+    end
+
+    RT --- CE
+    RT --- CB
+    CE -.->|"HTTP tool calls"| AE
+    CB -.->|"HTTP tool calls"| AB
+```
+
+### Layer 1: Runtime (this repo)
+
+The Automate-E runtime is a **generic engine**. It handles Discord connectivity, the Claude agent loop, memory, and the dashboard. It reads a `character.json` at startup to know who it is and what it can do. The runtime image (`ghcr.io/stig-johnny/automate-e`) is **shared by all agents** — you never need to rebuild it for a new agent.
+
+### Layer 2: Agent Configuration (your config)
+
+Each agent is defined by a `character.json` file and a `values.yaml` for Helm. This is where you set the agent's personality, which Discord channels it listens on, which tools it can call, and which Claude model to use. Deploying a new agent means creating a new Helm release of the same chart with different values — no code changes required.
+
+### Layer 3: Tool APIs (your backend, optional)
+
+Tool APIs are **separate services** that the agent calls via HTTP. They are not part of the runtime — they are independent applications you build and deploy yourself. An agent with no tools still works (it just has conversations without calling APIs). When you define tools in `character.json`, the runtime converts them into Claude tool definitions, and Claude decides when to call them.
+
+### Example: Two agents on one cluster
+
+```
+Namespace: automate-e                    Namespace: example-e
+┌────────────────────────┐               ┌────────────────────────┐
+│ Book-E pod             │               │ Example-E pod          │
+│ image: automate-e      │               │ image: automate-e      │
+│ config: book-e char    │               │ config: example-e char │
+│ channel: #invoices     │               │ channel: #example-e    │
+│ model: claude-haiku    │               │ model: claude-haiku    │
+└──────────┬─────────────┘               └──────────┬─────────────┘
+           │ HTTP                                    │ HTTP
+┌──────────▼─────────────┐               ┌──────────▼─────────────┐
+│ ai-accountant APIs     │               │ example-e-api          │
+│ (event store, folio,   │               │ (/quotes/random,       │
+│  fiken, cost API)      │               │  /facts/random)        │
+└────────────────────────┘               └────────────────────────┘
+```
+
+Both agents run the **exact same runtime image**. The only differences are the character config and which tool APIs they call.
+
 ## Deployment Modes
 
 ### Single-process mode
@@ -149,19 +208,29 @@ The memory system has three layers:
 
 ```
 automate-e/
-  src/
-    index.js          # Single-process entry point
-    gateway.js        # Split mode: Discord gateway, publishes to Redis Stream
-    worker.js         # Split mode: consumes from Redis, runs agent, replies via REST
-    character.js      # Loads and validates character.json
-    agent.js          # Agent loop, tool dispatch, prompt building
-    memory.js         # Postgres + in-memory storage
-    usage.js          # Token counting and cost calculation
+  src/                          # Layer 1: Runtime (generic engine)
+    index.js                    #   Single-process entry point
+    gateway.js                  #   Split mode: Discord gateway
+    worker.js                   #   Split mode: agent workers
+    character.js                #   Loads and validates character.json
+    agent.js                    #   Agent loop, tool dispatch, prompt building
+    memory.js                   #   Postgres + in-memory storage
+    usage.js                    #   Token counting and cost calculation
     dashboard/
-      server.js       # HTTP server + WebSocket
-      index.html      # Dashboard UI
+      server.js                 #   HTTP server + WebSocket
+      index.html                #   Dashboard UI
   charts/
-    automate-e/       # Helm chart
-  Dockerfile
+    automate-e/                 #   Helm chart (deploy any agent)
+  Dockerfile                    #   Builds the runtime image
   package.json
+  examples/
+    example-e/                  # Layer 2+3: Complete agent example
+      character.json            #   Agent config (personality, tools, channel)
+      values.yaml               #   Helm values for K8s deployment
+      api/                      #   Tool API backend (separate service)
+        server.js               #     Quotes + facts HTTP server
+        Dockerfile              #     Builds the tool API image
+      k8s/                      #   K8s manifests for the tool API
+        api-deployment.yaml     #     Deployment + Service
+        namespace.yaml          #     Agent namespace
 ```
