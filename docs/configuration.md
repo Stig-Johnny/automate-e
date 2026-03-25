@@ -211,7 +211,8 @@ LLM provider configuration.
   "llm": {
     "provider": "anthropic",
     "model": "claude-haiku-4-5-20251001",
-    "temperature": 0.3
+    "temperature": 0.3,
+    "maxTokens": 4096
   }
 }
 ```
@@ -221,6 +222,25 @@ LLM provider configuration.
 | `provider` | string | `"anthropic"` | LLM provider (currently only `"anthropic"`) |
 | `model` | string | `"claude-haiku-4-5-20251001"` | Model identifier |
 | `temperature` | number | `0.3` | Response randomness (0.0 = deterministic, 1.0 = creative) |
+| `maxTokens` | number | `4096` | Maximum tokens per Claude response. Increase for agents that make many tool calls per turn. |
+
+## `cron`
+
+Configuration for one-shot cron mode. When set, the agent can run on a schedule via `node src/run-once.js`, executing the prompt and posting results to a Discord webhook.
+
+```json
+{
+  "cron": {
+    "prompt": "Check all open PRs and report any that need attention."
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prompt` | string | Yes | The prompt to execute on each cron run |
+
+The cron schedule itself is configured in the Helm chart (`cron.schedule`), not in `character.json`. Results are posted to the `DISCORD_WEBHOOK_URL` environment variable if set.
 
 ## Environment Variables
 
@@ -232,6 +252,7 @@ These are set on the container, not in `character.json`.
 | `DISCORD_BOT_TOKEN` | Yes | Discord bot token |
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key |
 | `DATABASE_URL` | No | Postgres connection string. Omit for in-memory mode. |
+| `DISCORD_WEBHOOK_URL` | No | Discord webhook URL for cron mode output. |
 | `DASHBOARD_PORT` | No | Dashboard HTTP port (default: `3000`) |
 
 ## Full Example
@@ -273,10 +294,20 @@ These are set on the container, not in `character.json`.
     "patternRetention": "indefinite",
     "historyRetention": "indefinite"
   },
+  "mcpServers": {
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"]
+    }
+  },
   "llm": {
     "provider": "anthropic",
     "model": "claude-haiku-4-5-20251001",
-    "temperature": 0.3
+    "temperature": 0.3,
+    "maxTokens": 4096
+  },
+  "cron": {
+    "prompt": "Check all open PRs and report any that need attention."
   }
 }
 ```

@@ -167,6 +167,42 @@ tunnel:
 
 This deploys a `cloudflared` sidecar that routes traffic from the public hostname to the dashboard service inside the cluster.
 
+## Cron Mode (Scheduled Agents)
+
+Add a CronJob alongside the Discord bot by setting `cron.enabled: true`. The CronJob runs `run-once.js` which executes the prompt from `character.cron.prompt` and posts results to a Discord webhook.
+
+```yaml
+mode: single  # Discord bot as usual
+
+cron:
+  enabled: true
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+# Extra env vars for MCP servers (e.g., GitHub token)
+extraEnv:
+  - name: GITHUB_PERSONAL_ACCESS_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: my-agent-secrets
+        key: github-token
+```
+
+The CronJob shares the same character, secrets, and database as the Deployment. Add `discord-webhook-url` to your secret:
+
+```bash
+kubectl create secret generic my-agent-secrets \
+  -n my-namespace \
+  --from-literal=discord-bot-token=<token> \
+  --from-literal=anthropic-api-key=<key> \
+  --from-literal=discord-webhook-url=<webhook-url> \
+  --from-literal=github-token=<pat>
+```
+
+You can also run cron-only (no Discord bot) by omitting the `discord-bot-token`.
+
 ## Adding a New Agent
 
 1. Create a new `character.json` for the agent

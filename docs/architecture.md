@@ -44,26 +44,27 @@ Each agent is defined by a `character.json` file and a `values.yaml` for Helm. T
 
 Tool APIs are **separate services** that the agent calls via HTTP. They are not part of the runtime — they are independent applications you build and deploy yourself. An agent with no tools still works (it just has conversations without calling APIs). When you define tools in `character.json`, the runtime converts them into Claude tool definitions, and Claude decides when to call them.
 
-### Example: Two agents on one cluster
+### Example: Three agents on one cluster
 
 ```
-Namespace: automate-e                    Namespace: example-e
+Namespace: example-e                     Namespace: atl-e
 ┌────────────────────────┐               ┌────────────────────────┐
-│ Book-E pod             │               │ Example-E pod          │
+│ Example-E pod          │               │ ATL-E pod (Deployment) │
 │ image: automate-e      │               │ image: automate-e      │
-│ config: book-e char    │               │ config: example-e char │
-│ channel: #invoices     │               │ channel: #example-e    │
-│ model: claude-haiku    │               │ model: claude-haiku    │
+│ config: example-e char │               │ config: atl-e char     │
+│ channel: #example-e    │               │ channel: #admin        │
+│ mode: single           │               │ mode: single + cron    │
 └──────────┬─────────────┘               └──────────┬─────────────┘
-           │ HTTP                                    │ HTTP
+           │ HTTP                                    │ MCP (stdio)
 ┌──────────▼─────────────┐               ┌──────────▼─────────────┐
-│ ai-accountant APIs     │               │ example-e-api          │
-│ (event store, folio,   │               │ (/quotes/random,       │
-│  fiken, cost API)      │               │  /facts/random)        │
+│ example-e-api          │               │ GitHub MCP Server      │
+│ (/quotes/random,       │               │ (list PRs, reviews,    │
+│  /facts/random)        │               │  check runs, issues)   │
 └────────────────────────┘               └────────────────────────┘
+                                         + CronJob every 5 min
 ```
 
-Both agents run the **exact same runtime image**. The only differences are the character config and which tool APIs they call.
+All agents run the **exact same runtime image**. The only differences are the character config, which tools they use (HTTP or MCP), and the deployment mode.
 
 ## Deployment Modes
 
@@ -122,6 +123,16 @@ Key details of split mode:
 - **Redis SETNX lock** (`lock:<stream-id>`, 300s TTL) prevents duplicate processing if a message is redelivered
 - **Workers send replies directly** via Discord REST API -- there is no reply stream back through the gateway
 - **Gateway** handles thread creation and typing indicators before publishing
+
+### Cron mode (scheduled one-shot)
+
+`run-once.js` runs the agent loop once with a predefined prompt, posts results to a Discord webhook, and exits. Deployed as a Kubernetes CronJob.
+
+- Can run **alongside** single or split mode (same character, same database)
+- No Discord bot connection needed -- output goes to a webhook
+- K8s handles scheduling, retries, and concurrency
+
+Use `cron.enabled: true` in Helm values to add a CronJob alongside the Discord bot.
 
 ## Startup Sequence (single-process)
 
