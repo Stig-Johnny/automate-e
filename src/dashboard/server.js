@@ -62,6 +62,7 @@ export function createDashboard(character, memory) {
       toolCalls: state.toolCalls.slice(-20),
       uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
       usage: state.workerUsage || getUsageStats(),
+      logs: state.logs.slice(-50),
     }}));
     ws.on('close', () => wsClients.delete(ws));
   });

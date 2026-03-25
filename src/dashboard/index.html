@@ -146,6 +146,12 @@ function renderInit(data) {
     ).join('');
   }
 
+  // Logs
+  if (data.logs?.length) {
+    document.getElementById('logs').innerHTML = '';
+    data.logs.forEach(appendLog);
+  }
+
   // Tools
   if (data.toolCalls?.length) {
     document.getElementById('tools').innerHTML = '';
