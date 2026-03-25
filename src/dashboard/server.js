@@ -22,6 +22,7 @@ const wsClients = new Set();
 
 export function createDashboard(character, memory) {
   state.character = character;
+  state.memoryType = process.env.DATABASE_URL ? 'postgres' : 'in-memory';
 
   const html = readFileSync(join(__dirname, 'index.html'), 'utf-8');
 
@@ -37,7 +38,7 @@ export function createDashboard(character, memory) {
         toolCalls: state.toolCalls.slice(-20),
         logs: state.logs.slice(-50),
         uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
-        memoryType: memory ? 'postgres' : 'in-memory',
+        memoryType: state.memoryType,
         usage: state.workerUsage || getUsageStats(),
       }));
     } else if (req.url === '/api/usage') {
@@ -61,6 +62,7 @@ export function createDashboard(character, memory) {
       sessions: Object.fromEntries(state.sessions),
       toolCalls: state.toolCalls.slice(-20),
       uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
+      memoryType: state.memoryType,
       usage: state.workerUsage || getUsageStats(),
       logs: state.logs.slice(-50),
     }}));
