@@ -61,6 +61,7 @@ export function createDashboard(character, memory) {
       sessions: Object.fromEntries(state.sessions),
       toolCalls: state.toolCalls.slice(-20),
       uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
+      usage: state.workerUsage || getUsageStats(),
     }}));
     ws.on('close', () => wsClients.delete(ws));
   });
@@ -70,7 +71,7 @@ export function createDashboard(character, memory) {
     console.log(`[Automate-E] Dashboard running on http://0.0.0.0:${port}`);
   });
 
-  return { addLog, addToolCall, updateSession, setWorkerUsage };
+  return { addLog, addToolCall, updateSession, setWorkerUsage, updateUsage };
 }
 
 function broadcast(event) {
@@ -98,6 +99,10 @@ export function updateSession(threadId, data) {
   const existing = state.sessions.get(threadId) || { messageCount: 0, startedAt: new Date().toISOString() };
   state.sessions.set(threadId, { ...existing, ...data, messageCount: existing.messageCount + 1, lastMessage: new Date().toISOString() });
   broadcast({ type: 'session', data: { threadId, ...state.sessions.get(threadId) } });
+}
+
+export function updateUsage(usage) {
+  broadcast({ type: 'usage', data: usage });
 }
 
 export function setWorkerUsage(usage) {

@@ -120,6 +120,7 @@ function connect() {
     if (msg.type === 'log') appendLog(msg.data);
     if (msg.type === 'toolCall') appendToolCall(msg.data);
     if (msg.type === 'session') updateSession(msg.data);
+    if (msg.type === 'usage') renderUsage(msg.data);
   };
 }
 
