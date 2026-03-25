@@ -49,6 +49,15 @@ cron:
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
 
+# Extra environment variables (for MCP servers, custom integrations, etc.)
+extraEnv: []
+# Example:
+#   - name: GITHUB_PERSONAL_ACCESS_TOKEN
+#     valueFrom:
+#       secretKeyRef:
+#         name: my-secret
+#         key: github-token
+
 resources:
   requests:
     memory: 64Mi
