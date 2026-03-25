@@ -1,5 +1,5 @@
-# Single-process mode (default) or gateway+worker mode (set redis.enabled: true)
-mode: single  # "single" or "split"
+# "single" (default), "split" (gateway+workers), or "cron" (scheduled one-shot)
+mode: single
 
 image:
   repository: ghcr.io/stig-johnny/automate-e
@@ -39,6 +39,13 @@ secrets:
   discordBotToken: ""
   anthropicApiKey: ""
   databaseUrl: ""
+
+# Cron mode settings (only used when mode: cron)
+cron:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
 
 resources:
   requests:

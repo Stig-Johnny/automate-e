@@ -50,6 +50,7 @@ export function loadCharacter() {
   character.llm.temperature = character.llm.temperature ?? 0.3;
   character.discord.allowBots = character.discord.allowBots || [];
   character.mcpServers = character.mcpServers || {};
+  character.cron = character.cron || null;
 
   console.log(`[Automate-E] Loaded character: ${character.name}`);
   return character;

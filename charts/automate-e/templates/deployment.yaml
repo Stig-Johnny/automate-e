@@ -166,4 +166,61 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+{{- else if eq .Values.mode "cron" }}
+# Cron mode: runs agent once on schedule, posts results, exits
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "automate-e.fullname" . }}
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cron.schedule | quote }}
+  concurrencyPolicy: {{ .Values.cron.concurrencyPolicy }}
+  successfulJobsHistoryLimit: {{ .Values.cron.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cron.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "automate-e.selectorLabels" . | nindent 12 }}
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          restartPolicy: Never
+          containers:
+            - name: agent
+              image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ .Values.image.pullPolicy }}
+              command: ["node", "src/run-once.js"]
+              env:
+                - name: ANTHROPIC_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: anthropic-api-key
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: database-url
+                - name: DISCORD_WEBHOOK_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: discord-webhook-url
+                      optional: true
+              volumeMounts:
+                - name: character
+                  mountPath: /config
+                  readOnly: true
+              resources:
+                {{- toYaml .Values.resources | nindent 16 }}
+          volumes:
+            - name: character
+              configMap:
+                name: {{ include "automate-e.fullname" . }}-character
 {{- end }}
