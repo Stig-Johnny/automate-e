@@ -29,19 +29,13 @@ npm start
 
 ### Production (Cloudflare Tunnel)
 
-In production, expose the dashboard via a Cloudflare Tunnel. The Book-E dashboard is available at:
-
-```
-https://book-e.dashecorp.com
-```
-
-Enable the tunnel in Helm values:
+In production, expose the dashboard via a Cloudflare Tunnel. Enable the tunnel in Helm values:
 
 ```yaml
 tunnel:
   enabled: true
   tokenSecretName: cloudflared-automate-e-token
-  hostname: book-e.dashecorp.com
+  hostname: my-agent.example.com
 ```
 
 This deploys a `cloudflared` sidecar container that routes traffic from the public hostname to the dashboard service inside the cluster. The tunnel token is stored as a Kubernetes secret created manually before deployment.
@@ -49,7 +43,7 @@ This deploys a `cloudflared` sidecar container that routes traffic from the publ
 ### Ad-hoc access via port-forward
 
 ```bash
-kubectl port-forward -n automate-e deploy/book-e 3000:3000
+kubectl port-forward -n automate-e deploy/my-agent 3000:3000
 ```
 
 ## WebSocket Protocol

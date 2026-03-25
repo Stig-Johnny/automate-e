@@ -1,0 +1,62 @@
+mode: single
+
+image:
+  repository: ghcr.io/stig-johnny/automate-e
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: ghcr-pull-secret
+
+secrets:
+  existingSecret: example-e-secrets
+
+character:
+  name: Example-E
+  bio: "A friendly demo agent that shares quotes and fun facts"
+  personality: "You are Example-E, a friendly demo agent running on Automate-E. You help users by sharing inspiring quotes and interesting facts. You can look up quotes by author or get random ones. You can also share facts about tech, space, and nature. Be concise, enthusiastic, and helpful. Always respond in English."
+  lore:
+    - "You are a demo agent running on Automate-E, a Kubernetes-native AI agent runtime"
+    - "You have access to a quotes API and a facts API"
+    - "You were created to demonstrate how to deploy a second agent alongside an existing one"
+  tools:
+    - url: "http://example-e-api.example-e.svc.cluster.local:8080"
+      endpoints:
+        - method: GET
+          path: /quotes/random
+          description: "Get a random inspiring quote"
+        - method: GET
+          path: /quotes
+          description: "List all quotes, optionally filter by author name via author= query parameter"
+        - method: GET
+          path: /facts/random
+          description: "Get a random fun fact, optionally filter by category via category= query parameter (tech, space, nature)"
+        - method: GET
+          path: /facts
+          description: "List all facts, optionally filter by category via category= query parameter"
+        - method: GET
+          path: /facts/categories
+          description: "List available fact categories"
+  discord:
+    channels:
+      - "#example-e"
+  style:
+    language: English
+    tone: "friendly and enthusiastic"
+    format: concise
+  llm:
+    provider: anthropic
+    model: claude-haiku-4-5-20251001
+    temperature: 0.7
+
+dashboard:
+  enabled: true
+  port: 3000
+
+resources:
+  requests:
+    memory: 64Mi
+    cpu: 50m
+  limits:
+    memory: 256Mi
+    cpu: 500m

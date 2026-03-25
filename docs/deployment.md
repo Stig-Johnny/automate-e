@@ -30,11 +30,11 @@ image:
   tag: latest
 
 secrets:
-  existingSecret: book-e-secrets
+  existingSecret: my-agent-secrets
 
 character:
-  name: Book-E
-  bio: "AI accounting assistant"
+  name: My Agent
+  bio: "A helpful assistant"
   # ... full character.json contents
 
 dashboard:
@@ -60,7 +60,7 @@ image:
   tag: latest
 
 secrets:
-  existingSecret: book-e-secrets
+  existingSecret: my-agent-secrets
 
 redis:
   enabled: true
@@ -72,8 +72,8 @@ workers:
   replicas: 2
 
 character:
-  name: Book-E
-  bio: "AI accounting assistant"
+  name: My Agent
+  bio: "A helpful assistant"
   # ... full character.json contents
 
 dashboard:
@@ -83,7 +83,7 @@ dashboard:
 tunnel:
   enabled: true
   tokenSecretName: cloudflared-automate-e-token
-  hostname: book-e.dashecorp.com
+  hostname: my-agent.example.com
 ```
 
 ## Namespace
@@ -100,7 +100,7 @@ Create secrets manually before deploying. The chart references them via `secrets
 
 ```bash
 # Agent secrets (Discord token + Anthropic key + optional DB URL)
-kubectl create secret generic book-e-secrets \
+kubectl create secret generic my-agent-secrets \
   -n automate-e \
   --from-literal=discord-bot-token=<token> \
   --from-literal=anthropic-api-key=<key> \
@@ -162,7 +162,7 @@ The dashboard is exposed via Cloudflare Tunnel (no public LoadBalancer or Ingres
 tunnel:
   enabled: true
   tokenSecretName: cloudflared-automate-e-token
-  hostname: book-e.dashecorp.com
+  hostname: my-agent.example.com
 ```
 
 This deploys a `cloudflared` sidecar that routes traffic from the public hostname to the dashboard service inside the cluster.

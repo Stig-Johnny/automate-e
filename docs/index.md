@@ -35,18 +35,18 @@ sequenceDiagram
     participant T as Tool APIs
     participant M as Memory (Postgres)
 
-    U->>G: Message in #invoices
+    U->>G: Message in #example-e
     G->>A: messageCreate event
     A->>M: Load conversation history + user facts
     A->>C: System prompt + history + tools
-    C->>A: tool_use: get_folio_balance
-    A->>T: GET /folio/balance
-    T->>A: {balance: 142350}
+    C->>A: tool_use: get_quotes_random
+    A->>T: GET /quotes/random
+    T->>A: {text: "Talk is cheap...", author: "Linus Torvalds"}
     A->>C: Tool result
     C->>A: Text response
     A->>M: Save messages
     A->>G: Reply in thread
-    G->>U: "Saldo: 142 350 kr"
+    G->>U: "Here's a quote from Linus Torvalds: ..."
 ```
 
 ## Get Started
@@ -61,4 +61,3 @@ sequenceDiagram
 - [Deployment](deployment.md) -- deploy to Kubernetes with Helm
 - [Dashboard](dashboard.md) -- real-time monitoring UI
 - [Memory](memory.md) -- persistent conversations and facts
-- [Book-E](agents/book-e.md) -- the first Automate-E agent (AI accountant)
