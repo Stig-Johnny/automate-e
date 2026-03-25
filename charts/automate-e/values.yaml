@@ -1,4 +1,4 @@
-# "single" (default), "split" (gateway+workers), or "cron" (scheduled one-shot)
+# "single" (default) or "split" (gateway+workers)
 mode: single
 
 image:
@@ -40,8 +40,10 @@ secrets:
   anthropicApiKey: ""
   databaseUrl: ""
 
-# Cron mode settings (only used when mode: cron)
+# Cron: deploy an additional CronJob that runs the agent prompt on schedule.
+# Works with any mode — the CronJob shares the same character, secrets, and database.
 cron:
+  enabled: false
   schedule: "*/5 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3

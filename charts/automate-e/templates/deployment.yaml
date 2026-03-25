@@ -166,14 +166,17 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
-{{- else if eq .Values.mode "cron" }}
-# Cron mode: runs agent once on schedule, posts results, exits
+{{- end }}
+---
+{{- if .Values.cron.enabled }}
+# Cron: runs agent prompt on schedule (can coexist with single/split Discord bot)
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "automate-e.fullname" . }}
+  name: {{ include "automate-e.fullname" . }}-cron
   labels:
     {{- include "automate-e.labels" . | nindent 4 }}
+    app.kubernetes.io/component: cron
 spec:
   schedule: {{ .Values.cron.schedule | quote }}
   concurrencyPolicy: {{ .Values.cron.concurrencyPolicy }}
@@ -185,6 +188,7 @@ spec:
         metadata:
           labels:
             {{- include "automate-e.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cron
         spec:
           {{- with .Values.imagePullSecrets }}
           imagePullSecrets:
@@ -207,6 +211,7 @@ spec:
                     secretKeyRef:
                       name: {{ include "automate-e.secretName" . }}
                       key: database-url
+                      optional: true
                 - name: DISCORD_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:
