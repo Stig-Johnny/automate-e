@@ -11,6 +11,7 @@ import { WebSocketServer } from 'ws';
 import { loadCharacter } from './character.js';
 import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
+import { connectMcpServers } from './mcp.js';
 import { getUsageStats, getUsageSummary } from './usage.js';
 
 const character = loadCharacter();
@@ -20,7 +21,8 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 const memory = await createMemory();
-const agent = createAgent(character, memory);
+const mcpClients = await connectMcpServers(character.mcpServers);
+const agent = createAgent(character, memory, mcpClients);
 
 const toolCalls = [];
 const logs = [];

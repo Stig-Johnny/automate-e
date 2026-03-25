@@ -12,6 +12,7 @@ import Redis from 'ioredis';
 import { loadCharacter } from './character.js';
 import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
+import { connectMcpServers } from './mcp.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
 const STREAM_REPLIES = 'automate-e:replies';
@@ -20,7 +21,8 @@ const GROUP_NAME = 'workers';
 
 const character = loadCharacter();
 const memory = await createMemory();
-const agent = createAgent(character, memory);
+const mcpClients = await connectMcpServers(character.mcpServers);
+const agent = createAgent(character, memory, mcpClients);
 
 // --- Redis ---
 const redisUrl = process.env.REDIS_URL;
@@ -150,5 +152,6 @@ while (!shuttingDown) {
 }
 
 console.log('[Worker] Shutdown complete');
+await mcpClients.close();
 redis.disconnect();
 process.exit(0);

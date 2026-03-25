@@ -3,6 +3,7 @@ import { loadCharacter } from './character.js';
 import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
 import { createDashboard } from './dashboard/server.js';
+import { connectMcpServers } from './mcp.js';
 
 const character = loadCharacter();
 
@@ -22,8 +23,10 @@ if (!process.env.ANTHROPIC_API_KEY) {
 }
 
 const memory = await createMemory();
-const agent = createAgent(character, memory);
+const mcpClients = await connectMcpServers(character.mcpServers);
+const agent = createAgent(character, memory, mcpClients);
 const dashboard = createDashboard(character, memory);
+if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
 
 client.once('ready', () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);

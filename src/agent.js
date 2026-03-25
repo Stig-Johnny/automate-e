@@ -1,10 +1,12 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { trackUsage, getUsageStats } from './usage.js';
 
-export function createAgent(character, memory) {
+export function createAgent(character, memory, mcpClients) {
   const anthropic = new Anthropic();
 
-  const tools = buildTools(character);
+  const httpTools = buildTools(character);
+  const mcpTools = mcpClients?.tools || [];
+  const tools = [...httpTools, ...mcpTools];
   const systemPrompt = buildSystemPrompt(character);
 
   return {
@@ -60,7 +62,9 @@ export function createAgent(character, memory) {
           if (block.type === 'tool_use') {
             console.log(`[Automate-E] Tool call: ${block.name}`);
             const start = Date.now();
-            const result = await executeTool(block.name, block.input, character);
+            const result = mcpClients?.isMcpTool(block.name)
+              ? await mcpClients.callTool(block.name, block.input)
+              : await executeTool(block.name, block.input, character);
             const latency = Date.now() - start;
             if (dashboard) dashboard.addToolCall(block.name, result.error ? 'error' : 'ok', latency);
             toolResults.push({
@@ -100,7 +104,7 @@ ${character.lore.map(l => `- ${l}`).join('\n')}
 - Tone: ${character.style.tone}
 - Format: ${character.style.format}
 
-${character.tools.length > 0 ? `## Available tools
+${(character.tools.length > 0 || Object.keys(character.mcpServers || {}).length > 0) ? `## Available tools
 You have tools to interact with external systems. Use them when the user asks about something your tools can help with.
 
 ## Rules

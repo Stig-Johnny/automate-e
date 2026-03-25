@@ -49,6 +49,7 @@ export function loadCharacter() {
   character.memory = character.memory || { conversationRetention: '30d' };
   character.llm.temperature = character.llm.temperature ?? 0.3;
   character.discord.allowBots = character.discord.allowBots || [];
+  character.mcpServers = character.mcpServers || {};
 
   console.log(`[Automate-E] Loaded character: ${character.name}`);
   return character;

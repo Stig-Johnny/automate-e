@@ -13,6 +13,7 @@ const state = {
   sessions: new Map(),    // threadId → {lastMessage, messageCount, startedAt}
   toolCalls: [],          // [{name, timestamp, status, latencyMs}] — last 100
   workerUsage: null,      // Usage stats from workers (via Redis pub/sub)
+  mcpServers: {},         // serverName → {status, toolCount}
   logs: [],               // [{level, message, timestamp}] — last 500
   startedAt: new Date(),
 };
@@ -39,6 +40,7 @@ export function createDashboard(character, memory) {
         logs: state.logs.slice(-50),
         uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
         memoryType: state.memoryType,
+        mcpServers: state.mcpServers,
         usage: state.workerUsage || getUsageStats(),
       }));
     } else if (req.url === '/api/usage') {
@@ -63,6 +65,7 @@ export function createDashboard(character, memory) {
       toolCalls: state.toolCalls.slice(-20),
       uptime: Math.floor((Date.now() - state.startedAt.getTime()) / 1000),
       memoryType: state.memoryType,
+      mcpServers: state.mcpServers,
       usage: state.workerUsage || getUsageStats(),
       logs: state.logs.slice(-50),
     }}));
@@ -74,7 +77,7 @@ export function createDashboard(character, memory) {
     console.log(`[Automate-E] Dashboard running on http://0.0.0.0:${port}`);
   });
 
-  return { addLog, addToolCall, updateSession, setWorkerUsage, updateUsage };
+  return { addLog, addToolCall, updateSession, setWorkerUsage, updateUsage, setMcpStatus };
 }
 
 function broadcast(event) {
@@ -106,6 +109,10 @@ export function updateSession(threadId, data) {
 
 export function updateUsage(usage) {
   broadcast({ type: 'usage', data: usage });
+}
+
+export function setMcpStatus(servers) {
+  state.mcpServers = servers;
 }
 
 export function setWorkerUsage(usage) {
