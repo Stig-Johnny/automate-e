@@ -49,6 +49,7 @@ const server = http.createServer((req, res) => {
       ? facts.filter(f => f.category === category)
       : facts;
     if (!pool.length) return json(res, { error: 'No facts for that category. Valid categories: tech, space, nature' }, 404);
+    json(res, randomItem(pool));
   } else if (req.method === 'GET' && url.pathname === '/facts') {
     const category = url.searchParams.get('category')?.toLowerCase().trim();
     const filtered = category
