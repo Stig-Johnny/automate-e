@@ -162,6 +162,9 @@ spec:
                   key: database-url
             - name: REDIS_URL
               value: {{ .Values.redis.url | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: character
               mountPath: /config
