@@ -34,7 +34,7 @@ export function createAgent(character, memory, mcpClients) {
         try {
           response = await anthropic.messages.create({
             model: character.llm.model,
-            max_tokens: 1024,
+            max_tokens: character.llm.maxTokens || 4096,
             temperature: character.llm.temperature,
             system,
             tools,
