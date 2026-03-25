@@ -17,6 +17,7 @@ Agents are defined by a single `character.json` file. This page documents every 
 | `style` | object | No | Output style preferences |
 | `messageExamples` | object[] | No | Few-shot examples for consistent behavior |
 | `tools` | object[] | No | HTTP APIs the agent can call |
+| `mcpServers` | object | No | MCP servers the agent can use as tools |
 | `discord` | object | Yes | Discord connection settings |
 | `memory` | object | No | Memory retention policies |
 | `llm` | object | Yes | LLM provider and model settings |
@@ -118,6 +119,38 @@ HTTP APIs the agent can call via Claude's tool use. Each tool group has a base U
 | `description` | string | Yes | Shown to Claude as the tool description |
 
 The runtime converts each endpoint into a Claude tool. The tool name is derived from `method + path` (e.g., `get_folio_balance`). Claude decides when to call tools based on the description.
+
+## `mcpServers`
+
+[Model Context Protocol](https://modelcontextprotocol.io/) servers the agent can use as tools. Each server is spawned as a child process via stdio.
+
+```json
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/data"]
+    }
+  }
+}
+```
+
+### MCP Server Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| *(key)* | string | Yes | Server name (used as tool name prefix) |
+| `command` | string | Yes | Command to spawn the server process |
+| `args` | string[] | No | Arguments passed to the command |
+| `env` | object | No | Additional environment variables for the server process |
+
+MCP tools are prefixed with `mcp_{serverName}_` to avoid name collisions with HTTP tools. For example, a tool named `resolve-library-id` from the `context7` server becomes `mcp_context7_resolve-library-id`.
+
+MCP servers are connected on agent startup and disconnected on shutdown. If a server fails to connect, the agent continues without it.
 
 ## `discord`
 
