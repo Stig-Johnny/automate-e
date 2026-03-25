@@ -37,7 +37,7 @@ cost = (input_tokens / 1_000_000 * input_price) +
        (output_tokens / 1_000_000 * output_price)
 ```
 
-Example: A Book-E message using Haiku with 2,000 input tokens and 500 output tokens:
+Example: A message using Haiku with 2,000 input tokens and 500 output tokens:
 
 ```
 cost = (2000 / 1_000_000 * 0.80) + (500 / 1_000_000 * 4.00)

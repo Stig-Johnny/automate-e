@@ -27,7 +27,7 @@ The core system prompt. This is the most important field -- it defines who the a
 
 ```json
 {
-  "personality": "You are Book-E, an AI accounting assistant for Invotek AS.\nYou process receipts, register invoices, and answer accounting questions.\nYou speak Norwegian unless the user writes in English."
+  "personality": "You are a helpful assistant.\nYou answer questions and help users with tasks.\nYou are concise and professional."
 }
 ```
 
@@ -41,9 +41,9 @@ An array of facts the agent should know. Each entry is appended to the system pr
 ```json
 {
   "lore": [
-    "Folio is the business banking system",
-    "25% MVA is standard, 15% for food/restaurants",
-    "All write actions go through event sourcing: PROPOSED -> APPROVED -> EXECUTED"
+    "The API returns JSON responses",
+    "Users can ask questions in any language",
+    "All actions are logged for audit purposes"
   ]
 }
 ```
@@ -55,9 +55,9 @@ Controls the agent's output format.
 ```json
 {
   "style": {
-    "language": "Norwegian",
+    "language": "English",
     "tone": "professional but friendly",
-    "format": "concise, use currency formatting for amounts"
+    "format": "concise"
   }
 }
 ```
@@ -76,8 +76,8 @@ Few-shot examples that guide Claude's response style. Each example has a `user` 
 {
   "messageExamples": [
     {
-      "user": "Forward: Adobe invoice 199kr",
-      "agent": "Foreslår: Adobe 199 kr -> konto 6540 (programvare, 25% MVA). Auto-godkjent."
+      "user": "What's the status of order #123?",
+      "agent": "Order #123 is currently in transit. Expected delivery: tomorrow."
     }
   ]
 }
@@ -91,17 +91,17 @@ HTTP APIs the agent can call via Claude's tool use. Each tool group has a base U
 {
   "tools": [
     {
-      "url": "http://eventstore-api.ai-accountant.svc.cluster.local",
+      "url": "http://my-api.default.svc.cluster.local",
       "endpoints": [
         {
-          "method": "POST",
-          "path": "/propose/receipt",
-          "description": "Propose receipt attachment"
+          "method": "GET",
+          "path": "/orders",
+          "description": "List orders by status"
         },
         {
           "method": "GET",
-          "path": "/events",
-          "description": "List events by status or correlationId"
+          "path": "/orders/:id",
+          "description": "Get order details by ID"
         }
       ]
     }
@@ -126,9 +126,9 @@ Discord connection and routing settings.
 ```json
 {
   "discord": {
-    "channels": ["#invoices"],
-    "threadMode": "per-document",
-    "allowBots": ["1477267530946187305"]
+    "channels": ["#support"],
+    "threadMode": "per-user",
+    "allowBots": []
   }
 }
 ```
@@ -205,40 +205,40 @@ These are set on the container, not in `character.json`.
 
 ```json
 {
-  "name": "Book-E",
-  "bio": "AI accounting assistant for Invotek AS",
-  "personality": "You are Book-E, an AI accounting assistant...",
+  "name": "My Agent",
+  "bio": "A helpful support assistant",
+  "personality": "You are a helpful assistant that answers questions...",
   "lore": [
-    "Folio is the business banking system",
-    "Fiken is the accounting system"
+    "The API uses REST conventions",
+    "All timestamps are in UTC"
   ],
   "style": {
-    "language": "Norwegian",
+    "language": "English",
     "tone": "professional but friendly",
-    "format": "concise, use currency formatting for amounts"
+    "format": "concise"
   },
   "messageExamples": [
     {
-      "user": "Forward: Adobe invoice 199kr",
-      "agent": "Foreslår: Adobe 199 kr -> konto 6540 (programvare, 25% MVA)."
+      "user": "What's the status of order #123?",
+      "agent": "Order #123 is in transit. Expected delivery: tomorrow."
     }
   ],
   "tools": [
     {
-      "url": "http://eventstore-api.ai-accountant.svc.cluster.local",
+      "url": "http://my-api.default.svc.cluster.local",
       "endpoints": [
-        { "method": "POST", "path": "/propose/receipt", "description": "Propose receipt attachment" }
+        { "method": "GET", "path": "/orders", "description": "List orders by status" }
       ]
     }
   ],
   "discord": {
-    "channels": ["#invoices"],
-    "threadMode": "per-document"
+    "channels": ["#support"],
+    "threadMode": "per-user"
   },
   "memory": {
     "conversationRetention": "30d",
     "patternRetention": "indefinite",
-    "historyRetention": "5y"
+    "historyRetention": "indefinite"
   },
   "llm": {
     "provider": "anthropic",
