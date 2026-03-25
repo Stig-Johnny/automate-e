@@ -42,7 +42,7 @@ try {
     userId: 'cron',
     userName: character.name,
     channelId: 'cron',
-    threadId: `cron-${Date.now()}`,
+    threadId: 'cron',
     attachments: [],
   }, dashboard);
 
