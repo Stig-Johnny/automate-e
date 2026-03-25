@@ -40,6 +40,9 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: database-url
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: character
               mountPath: /config
@@ -94,6 +97,9 @@ spec:
                   key: discord-bot-token
             - name: REDIS_URL
               value: {{ .Values.redis.url | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           volumeMounts:
             - name: character
               mountPath: /config
@@ -218,6 +224,9 @@ spec:
                       name: {{ include "automate-e.secretName" . }}
                       key: discord-webhook-url
                       optional: true
+                {{- with .Values.extraEnv }}
+                {{- toYaml . | nindent 16 }}
+                {{- end }}
               volumeMounts:
                 - name: character
                   mountPath: /config
