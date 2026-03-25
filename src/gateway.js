@@ -8,13 +8,13 @@ import { Client, GatewayIntentBits, Partials, ChannelType } from 'discord.js';
 import Redis from 'ioredis';
 import { loadCharacter } from './character.js';
 import { createDashboard } from './dashboard/server.js';
+import { createWebhookHandler } from './webhook.js';
 
 const STREAM_MESSAGES = 'automate-e:messages';
 const MAX_STREAM_LEN = 10000;
 const recentMessageIds = new Set();
 
 const character = loadCharacter();
-const dashboard = createDashboard(character);
 
 // --- Redis ---
 const redisUrl = process.env.REDIS_URL;
@@ -25,6 +25,21 @@ if (!redisUrl) {
 
 const redis = new Redis(redisUrl);
 redis.on('error', (err) => console.error('[Gateway] Redis error:', err.message));
+
+// --- Webhook handler + Dashboard ---
+const webhookHandler = Object.keys(character.webhooks || {}).length > 0
+  ? createWebhookHandler(character, {
+      publishToRedis: async (payload) => {
+        console.log(`[Gateway] Publishing webhook event from ${payload.webhookSource}/${payload.webhookEvent}`);
+        dashboard.addLog('info', `Webhook: ${payload.webhookSource}/${payload.webhookEvent}`);
+        await redis.xadd(STREAM_MESSAGES, 'MAXLEN', '~', MAX_STREAM_LEN, '*',
+          'payload', JSON.stringify(payload),
+        );
+      },
+    })
+  : null;
+
+const dashboard = createDashboard(character, null, { webhookHandler });
 
 // Subscribe to worker dashboard events
 const redisSub = new Redis(redisUrl);

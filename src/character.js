@@ -51,6 +51,7 @@ export function loadCharacter() {
   character.discord.allowBots = character.discord.allowBots || [];
   character.mcpServers = character.mcpServers || {};
   character.cron = character.cron || null;
+  character.webhooks = character.webhooks || {};
 
   console.log(`[Automate-E] Loaded character: ${character.name}`);
   return character;

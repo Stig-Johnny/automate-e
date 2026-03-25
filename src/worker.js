@@ -133,8 +133,19 @@ while (!shuttingDown) {
             attachments: msg.attachments || [],
           }, dashboard);
 
-          // Send reply directly via Discord REST API
-          await sendDiscordReply(msg.threadId, response, msg.isDM);
+          // Send reply — webhook events go to Discord webhook, messages go to thread
+          if (msg.isWebhook) {
+            const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+            if (webhookUrl && response.trim()) {
+              await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: character.name, content: response.slice(0, 2000) }),
+              });
+            }
+          } else {
+            await sendDiscordReply(msg.threadId, response, msg.isDM);
+          }
 
           await redis.xack(STREAM_MESSAGES, GROUP_NAME, id);
           console.log(`[Worker] Replied to ${msg.threadId} (acked ${id})`);

@@ -4,6 +4,7 @@ import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
 import { createDashboard } from './dashboard/server.js';
 import { connectMcpServers } from './mcp.js';
+import { createWebhookHandler } from './webhook.js';
 
 const character = loadCharacter();
 
@@ -25,7 +26,32 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const memory = await createMemory();
 const mcpClients = await connectMcpServers(character.mcpServers);
 const agent = createAgent(character, memory, mcpClients);
-const dashboard = createDashboard(character, memory);
+
+// Webhook handler for single-process mode
+const webhookHandler = Object.keys(character.webhooks || {}).length > 0
+  ? createWebhookHandler(character, {
+      processDirectly: async (payload) => {
+        const response = await agent.process(payload.messageContent, {
+          userId: payload.authorId,
+          userName: payload.authorName,
+          channelId: payload.channelId,
+          threadId: payload.threadId,
+          attachments: [],
+        }, dashboard);
+        // Post to Discord webhook if configured
+        const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+        if (webhookUrl && response.trim()) {
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: character.name, content: response.slice(0, 2000) }),
+          });
+        }
+      },
+    })
+  : null;
+
+const dashboard = createDashboard(character, memory, { webhookHandler });
 if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
 
 client.once('ready', () => {
