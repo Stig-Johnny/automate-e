@@ -16,6 +16,7 @@ Automate-E includes a built-in web dashboard for monitoring agent activity in re
 | **Tool call log** | Track which tools the agent calls, with request/response details |
 | **Token usage** | Monitor input/output tokens and estimated cost per message |
 | **Memory stats** | View conversation count, fact count, and storage usage |
+| **MCP Servers** | Connected/disconnected status and tool count per MCP server |
 | **Agent status** | Connection state, uptime, and last activity timestamp |
 
 ## Access

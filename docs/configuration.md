@@ -242,6 +242,31 @@ Configuration for one-shot cron mode. When set, the agent can run on a schedule 
 
 The cron schedule itself is configured in the Helm chart (`cron.schedule`), not in `character.json`. Results are posted to the `DISCORD_WEBHOOK_URL` environment variable if set.
 
+## `webhooks`
+
+Receive real-time HTTP events from external systems (e.g., GitHub webhooks). Each source gets a `POST /webhook/{source}` endpoint on the dashboard HTTP server.
+
+```json
+{
+  "webhooks": {
+    "github": {
+      "secret": "env:GITHUB_WEBHOOK_SECRET"
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| *(key)* | string | Yes | Source name (used in URL path) |
+| `secret` | string | No | HMAC-SHA256 secret. Prefix with `env:` to read from environment variable. |
+
+Events are verified via `X-Hub-Signature-256` header (GitHub HMAC). If no secret is configured, verification is skipped.
+
+**Supported GitHub events:** `pull_request`, `pull_request_review`, `check_suite`, `check_run`, `issues`, `issue_comment`, `push`
+
+The webhook event is formatted into a concise prompt and processed through the agent loop. In split mode, events are queued via Redis Stream (same as Discord messages). Responses are posted to `DISCORD_WEBHOOK_URL`.
+
 ## Environment Variables
 
 These are set on the container, not in `character.json`.
@@ -253,6 +278,7 @@ These are set on the container, not in `character.json`.
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key |
 | `DATABASE_URL` | No | Postgres connection string. Omit for in-memory mode. |
 | `DISCORD_WEBHOOK_URL` | No | Discord webhook URL for cron mode output. |
+| `GITHUB_WEBHOOK_SECRET` | No | HMAC secret for GitHub webhook verification. |
 | `DASHBOARD_PORT` | No | Dashboard HTTP port (default: `3000`) |
 
 ## Full Example
