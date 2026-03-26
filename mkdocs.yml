@@ -29,7 +29,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_mermaid_format
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.tabbed:
@@ -52,5 +52,8 @@ nav:
     - Dashboard: dashboard.md
     - Memory: memory.md
     - Usage Tracking: usage-tracking.md
+
+extra_javascript:
+  - https://unpkg.com/mermaid@11/dist/mermaid.min.js
 
 strict: true
