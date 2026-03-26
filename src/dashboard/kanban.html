@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban — ATL-E</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e1e4e8; }
+  .header { background: #161b22; padding: 12px 24px; border-bottom: 1px solid #30363d; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 16px; font-weight: 600; }
+  .header .meta { font-size: 12px; color: #8b949e; }
+  .header a { color: #58a6ff; text-decoration: none; font-size: 12px; margin-left: 16px; }
+  .board { display: flex; gap: 12px; padding: 12px; height: calc(100vh - 50px); overflow-x: auto; }
+  .column { flex: 0 0 280px; background: #161b22; border: 1px solid #30363d; border-radius: 8px; display: flex; flex-direction: column; }
+  .column-header { padding: 10px 12px; border-bottom: 1px solid #30363d; font-weight: 600; font-size: 13px; color: #8b949e; display: flex; justify-content: space-between; }
+  .column-count { background: #30363d; color: #e1e4e8; padding: 1px 8px; border-radius: 10px; font-size: 11px; }
+  .column-body { flex: 1; overflow-y: auto; padding: 8px; }
+  .card { background: #0d1117; border: 1px solid #30363d; border-radius: 6px; padding: 10px; margin-bottom: 8px; cursor: pointer; transition: border-color 0.15s; }
+  .card:hover { border-color: #58a6ff; }
+  .card-title { font-size: 13px; font-weight: 500; margin-bottom: 6px; line-height: 1.4; }
+  .card-title a { color: #e1e4e8; text-decoration: none; }
+  .card-title a:hover { color: #58a6ff; }
+  .card-meta { font-size: 11px; color: #8b949e; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .card-repo { color: #58a6ff; font-weight: 500; }
+  .card-number { color: #8b949e; }
+  .label { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 10px; margin: 2px 2px 0 0; }
+  .label-high { background: #da3633; color: #fff; }
+  .label-ios { background: #1f2d3d; color: #79c0ff; }
+  .label-claimed { background: #1a2e1a; color: #7ee787; }
+  .label-codi-e { background: #2a1a3e; color: #d2a8ff; }
+  .label-default { background: #21262d; color: #8b949e; }
+  .pr-link { display: flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 11px; }
+  .pr-link a { color: #58a6ff; text-decoration: none; }
+  .pr-draft { color: #8b949e; }
+  .agent { font-size: 11px; color: #7ee787; margin-top: 4px; }
+  .loading { text-align: center; padding: 40px; color: #8b949e; }
+  .age { color: #d29922; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Kanban Board</h1>
+  <div>
+    <span class="meta" id="meta">Loading...</span>
+    <a href="/">Dashboard</a>
+  </div>
+</div>
+
+<div class="board" id="board">
+  <div class="loading">Loading issues from GitHub...</div>
+</div>
+
+<script>
+const COLUMN_CONFIG = [
+  { id: 'backlog', label: 'Backlog', color: '#8b949e' },
+  { id: 'ready', label: 'Ready', color: '#58a6ff' },
+  { id: 'in-progress', label: 'In Progress', color: '#d29922' },
+  { id: 'in-review', label: 'In Review', color: '#a371f7' },
+  { id: 'done', label: 'Done (24h)', color: '#7ee787' },
+];
+
+function renderBoard(data) {
+  document.getElementById('meta').textContent =
+    `${data.totalIssues} issues across ${data.repos} repos — ${new Date(data.fetchedAt).toLocaleTimeString()}`;
+
+  const board = document.getElementById('board');
+  board.innerHTML = '';
+
+  for (const col of COLUMN_CONFIG) {
+    const cards = data.columns[col.id] || [];
+    const colEl = document.createElement('div');
+    colEl.className = 'column';
+    colEl.innerHTML = `
+      <div class="column-header">
+        <span>${col.label}</span>
+        <span class="column-count">${cards.length}</span>
+      </div>
+      <div class="column-body">
+        ${cards.length ? cards.map(renderCard).join('') : '<div style="color:#484f58;font-size:12px;padding:8px">No items</div>'}
+      </div>
+    `;
+    board.appendChild(colEl);
+  }
+}
+
+function renderCard(card) {
+  const age = getAge(card.created_at);
+  const labels = card.labels
+    .filter(l => !['in-progress', 'in-review', 'agent-ready'].includes(l))
+    .map(l => {
+      let cls = 'label-default';
+      if (l === 'high-priority') cls = 'label-high';
+      if (l.startsWith('claimed-')) cls = 'label-claimed';
+      if (l === 'assigned-codi-e') cls = 'label-codi-e';
+      if (l === 'requires-macos' || l === 'ios') cls = 'label-ios';
+      return `<span class="label ${cls}">${l}</span>`;
+    }).join('');
+
+  const pr = card.linkedPr
+    ? `<div class="pr-link">PR <a href="${card.linkedPr.url}">#${card.linkedPr.number}</a> ${card.linkedPr.draft ? '<span class="pr-draft">draft</span>' : ''}</div>`
+    : '';
+
+  const agent = card.claimedBy
+    ? `<div class="agent">${card.claimedBy}</div>`
+    : '';
+
+  return `
+    <div class="card" data-id="${card.id}">
+      <div class="card-title"><a href="${card.url}" target="_blank">${escapeHtml(card.title)}</a></div>
+      <div class="card-meta">
+        <span class="card-repo">${card.repo}</span>
+        <span class="card-number">#${card.number}</span>
+        <span class="age">${age}</span>
+      </div>
+      ${labels ? `<div style="margin-top:4px">${labels}</div>` : ''}
+      ${pr}
+      ${agent}
+    </div>
+  `;
+}
+
+function getAge(dateStr) {
+  const ms = Date.now() - new Date(dateStr).getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function escapeHtml(str) {
+  return str?.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '';
+}
+
+async function loadBoard() {
+  try {
+    const res = await fetch('/api/kanban');
+    const data = await res.json();
+    if (data.error) {
+      document.getElementById('board').innerHTML = `<div class="loading">${data.error}</div>`;
+      return;
+    }
+    renderBoard(data);
+  } catch (err) {
+    document.getElementById('board').innerHTML = `<div class="loading">Error: ${err.message}</div>`;
+  }
+}
+
+// WebSocket for real-time updates
+const wsUrl = `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+function connectWs() {
+  const ws = new WebSocket(wsUrl);
+  ws.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    // Refresh board when webhook events arrive
+    if (msg.type === 'log' && msg.data?.message?.includes('Webhook')) {
+      setTimeout(loadBoard, 2000); // Wait for GitHub to process, then refresh
+    }
+  };
+  ws.onclose = () => setTimeout(connectWs, 3000);
+}
+
+// Auto-refresh every 60s
+setInterval(loadBoard, 60000);
+
+loadBoard();
+connectWs();
+</script>
+</body>
+</html>

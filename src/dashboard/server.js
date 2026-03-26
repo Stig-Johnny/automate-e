@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { getUsageStats } from '../usage.js';
+import { getKanbanData } from './kanban.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -26,6 +27,7 @@ export function createDashboard(character, memory, { webhookHandler } = {}) {
   state.memoryType = process.env.DATABASE_URL ? 'postgres' : 'in-memory';
 
   const html = readFileSync(join(__dirname, 'index.html'), 'utf-8');
+  const kanbanHtml = readFileSync(join(__dirname, 'kanban.html'), 'utf-8');
 
   const server = createServer(async (req, res) => {
     // Webhook endpoints: POST /webhook/{source}
@@ -43,6 +45,18 @@ export function createDashboard(character, memory, { webhookHandler } = {}) {
     if (req.url === '/' || req.url === '/dashboard') {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(html);
+    } else if (req.url === '/kanban') {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(kanbanHtml);
+    } else if (req.url === '/api/kanban') {
+      try {
+        const data = await getKanbanData(state.character);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
     } else if (req.url === '/api/state') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
