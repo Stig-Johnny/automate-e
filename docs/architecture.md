@@ -53,7 +53,7 @@ Namespace: example-e                     Namespace: atl-e
 │ image: automate-e      │               │ image: automate-e      │
 │ config: example-e char │               │ config: atl-e char     │
 │ channel: #example-e    │               │ channel: #admin        │
-│ mode: single           │               │ mode: single + cron    │
+│ mode: single           │               │ mode: split + cron     │
 └──────────┬─────────────┘               └──────────┬─────────────┘
            │ HTTP                                    │ MCP (stdio)
 ┌──────────▼─────────────┐               ┌──────────▼─────────────┐
@@ -61,7 +61,9 @@ Namespace: example-e                     Namespace: atl-e
 │ (/quotes/random,       │               │ (list PRs, reviews,    │
 │  /facts/random)        │               │  check runs, issues)   │
 └────────────────────────┘               └────────────────────────┘
-                                         + CronJob every 5 min
+                                         + CronJob every hour
+                                         + Webhook receiver
+                                         + Kanban board
 ```
 
 All agents run the **exact same runtime image**. The only differences are the character config, which tools they use (HTTP or MCP), and the deployment mode.
@@ -90,9 +92,10 @@ graph TB
     AL --> TD
     AL <--> MS
     AL --> UT
-    TD --> API[Tool APIs]
+    TD --> API[Tool APIs<br/>HTTP + MCP]
     AL <--> Claude[Claude API]
     DB <--> WS[WebSocket Clients]
+    DB --> WH[Webhook<br/>Receiver]
     UT --> DB
 ```
 
@@ -106,6 +109,7 @@ In production, the system runs as separate processes connected by Redis Streams.
 ```mermaid
 graph LR
     DC[Discord] <--> GW[gateway.js<br/>1 replica]
+    WH[Webhooks] -->|POST /webhook| GW
     GW -->|XADD| RS[Redis Stream<br/>automate-e:messages]
     RS -->|XREADGROUP| W1[worker.js<br/>replica 1]
     RS -->|XREADGROUP| W2[worker.js<br/>replica 2]
@@ -115,6 +119,8 @@ graph LR
     W2 <--> CL
     W1 <--> MEM[Memory<br/>Postgres]
     W2 <--> MEM
+    W1 --> MCP[MCP Servers]
+    W2 --> MCP
 ```
 
 Key details of split mode:
