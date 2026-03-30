@@ -1,9 +1,13 @@
 mode: single
+messagingPlatform: slack
 
 image:
   repository: ghcr.io/stig-johnny/automate-e
   tag: latest
   pullPolicy: Always
+
+# Use index-v2.js for multi-platform messaging support
+command: ["node", "src/index-v2.js"]
 
 imagePullSecrets:
   - name: ghcr-pull-secret
@@ -37,10 +41,14 @@ character:
     - "Dev-E implements features. You assign work, you don't write code."
     - "Rollback is never automatic. That's always a CTO decision."
 
-  discord:
-    channels:
-      - "#conductor-e"
-    threadMode: none
+  # Multi-platform messaging — using Slack for initial testing
+  messaging:
+    platform: slack
+    config:
+      channels:
+        general: conductor-e
+
+  tools: []
 
   style:
     language: English
