@@ -68,7 +68,9 @@ export function loadCharacter() {
   character.style = character.style || { language: 'English', tone: 'helpful', format: 'concise' };
   character.memory = character.memory || { conversationRetention: '30d' };
   character.llm.temperature = character.llm.temperature ?? 0.3;
-  character.discord.allowBots = character.discord.allowBots || [];
+  if (character.discord) {
+    character.discord.allowBots = character.discord.allowBots || [];
+  }
   character.mcpServers = character.mcpServers || {};
   character.cron = character.cron || null;
   character.webhooks = character.webhooks || {};
