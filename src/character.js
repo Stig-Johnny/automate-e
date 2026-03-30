@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 
-const REQUIRED_FIELDS = ['name', 'personality', 'discord', 'tools', 'llm'];
+const REQUIRED_FIELDS = ['name', 'personality', 'tools', 'llm'];
 
 export function loadCharacter() {
   const charPath = process.env.CHARACTER_FILE || '/config/character.json';
@@ -29,10 +29,30 @@ export function loadCharacter() {
     }
   }
 
-  // Validate nested structure
-  if (!Array.isArray(character.discord?.channels)) {
-    console.error('[Automate-E] Invalid config: discord.channels must be an array of strings.');
+  // Validate messaging — support both legacy discord field and new messaging field
+  if (character.messaging) {
+    // New-style: messaging.platform + messaging.config
+    if (!['discord', 'slack'].includes(character.messaging.platform)) {
+      console.error(`[Automate-E] Invalid config: messaging.platform must be 'discord' or 'slack', got '${character.messaging.platform}'.`);
+      process.exit(1);
+    }
+    // Populate discord field from messaging config for backward compat
+    if (character.messaging.platform === 'discord' && !character.discord) {
+      character.discord = {
+        channels: Object.values(character.messaging.config?.channels || {}),
+      };
+    }
+  } else if (!character.discord || !Array.isArray(character.discord.channels)) {
+    console.error('[Automate-E] Invalid config: either messaging.platform or discord.channels is required.');
     process.exit(1);
+  }
+
+  // Set default messaging from discord config if not specified
+  if (!character.messaging && character.discord) {
+    character.messaging = {
+      platform: 'discord',
+      config: { channels: character.discord.channels },
+    };
   }
   if (!character.llm?.model) {
     console.error('[Automate-E] Invalid config: llm.model is required.');

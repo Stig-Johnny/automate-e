@@ -1,11 +1,12 @@
 {
   "name": "automate-e",
   "version": "0.1.0",
-  "description": "Automate-E — Kubernetes-native AI agent runtime for Discord",
+  "description": "Automate-E — Kubernetes-native AI agent runtime for Discord and Slack",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "start:v2": "node src/index-v2.js",
     "start:gateway": "node src/gateway.js",
     "start:worker": "node src/worker.js",
     "dev": "node --watch src/index.js",
@@ -15,6 +16,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "@slack/bolt": "^4.1.0",
     "discord.js": "^14.18.0",
     "ioredis": "^5.6.0",
     "pg": "^8.13.0",
