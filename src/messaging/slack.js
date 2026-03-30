@@ -58,7 +58,7 @@ export async function createSlackAdapter(character) {
       const authResult = await app.client.auth.test();
       botUserId = authResult.user_id;
       console.log(`[Slack] Connected as ${authResult.user} (${botUserId})`);
-      console.log(`[Slack] Listening on channels: ${channels.join(', ')}`);
+      console.log(`[Slack] Listening on channels: ${channelNames.join(', ')}`);
 
       // Listen for messages
       app.message(async ({ message, say, client }) => {
