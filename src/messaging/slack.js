@@ -26,13 +26,16 @@ async function loadBolt() {
 export async function createSlackAdapter(character) {
   await loadBolt();
 
-  const channels = character.messaging?.config?.channels
+  const rawChannels = character.messaging?.config?.channels
     || character.slack?.channels
     || character.discord?.channels // Fallback for backward compat
     || [];
 
+  // Normalize channels — can be array ["#foo"] or object {key: "foo"}
+  const channelList = Array.isArray(rawChannels) ? rawChannels : Object.values(rawChannels);
+
   // Strip # prefix from channel names for matching
-  const channelNames = channels.map(c => c.replace(/^#/, ''));
+  const channelNames = channelList.map(c => c.replace(/^#/, ''));
 
   let messageHandler = null;
 
