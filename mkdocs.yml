@@ -1,5 +1,5 @@
 site_name: Automate-E
-site_description: Kubernetes-native AI agent runtime for Discord
+site_description: Kubernetes-native AI agent runtime for Discord and Slack
 site_url: https://stig-johnny.github.io/automate-e/
 repo_url: https://github.com/Stig-Johnny/automate-e
 repo_name: Stig-Johnny/automate-e
@@ -44,6 +44,7 @@ nav:
   - Overview: index.md
   - Getting Started:
     - Quick Start: quickstart.md
+    - Messaging (Discord + Slack): messaging.md
     - Discord Bot Setup: discord-setup.md
     - Configuration: configuration.md
   - Reference:

@@ -41,36 +41,26 @@ export async function createSlackAdapter(character) {
     token: process.env.SLACK_BOT_TOKEN,
     appToken: process.env.SLACK_APP_TOKEN,
     socketMode: true,
-    logLevel: 'debug',
+    logLevel: 'warn',
   });
 
   // Register listeners BEFORE app.start() — Bolt requires this
   app.message(async ({ message, say, client }) => {
-    console.log(`[Slack] Raw message event: user=${message.user}, channel=${message.channel}, subtype=${message.subtype || 'none'}`);
-
     if (message.bot_id || message.user === botUserId) return;
     if (message.subtype) return;
-    if (!messageHandler) {
-      console.log('[Slack] No message handler registered');
-      return;
-    }
+    if (!messageHandler) return;
 
     // Check if message is in an allowed channel
     let channelName;
     try {
       const channelInfo = await client.conversations.info({ channel: message.channel });
       channelName = channelInfo.channel?.name;
-    } catch (err) {
-      console.log(`[Slack] Can't access channel ${message.channel}: ${err.message}`);
+    } catch {
       return;
     }
 
-    console.log(`[Slack] Channel: ${channelName}, allowed: ${channelNames.join(',')}`);
     const isAllowed = channelNames.includes(channelName) || channelNames.includes(message.channel);
-    if (!isAllowed) {
-      console.log(`[Slack] Channel ${channelName} not in allowed list, ignoring`);
-      return;
-    }
+    if (!isAllowed) return;
 
     let userName = message.user;
     try {
@@ -79,8 +69,7 @@ export async function createSlackAdapter(character) {
     } catch {}
 
     const threadTs = message.thread_ts || message.ts;
-
-    console.log(`[Slack] Processing message from ${userName} in ${channelName}`);
+    console.log(`[Slack] Message from ${userName} in #${channelName}`);
 
     await messageHandler({
       content: message.text || '',
@@ -101,8 +90,6 @@ export async function createSlackAdapter(character) {
   });
 
   app.event('app_mention', async ({ event, say, client }) => {
-    console.log(`[Slack] app_mention event: user=${event.user}, channel=${event.channel}`);
-
     if (!messageHandler) return;
 
     let userName = event.user;
@@ -124,11 +111,6 @@ export async function createSlackAdapter(character) {
       _slackThreadTs: threadTs,
       _say: say,
     });
-  });
-
-  // Catch-all for unhandled events (debug)
-  app.event(/.*/, async ({ event }) => {
-    console.log(`[Slack] Event received: type=${event.type}`);
   });
 
   return {

@@ -18,7 +18,8 @@ Agents are defined by a single `character.json` file. This page documents every 
 | `messageExamples` | object[] | No | Few-shot examples for consistent behavior |
 | `tools` | object[] | No | HTTP APIs the agent can call |
 | `mcpServers` | object | No | MCP servers the agent can use as tools |
-| `discord` | object | Yes | Discord connection settings |
+| `messaging` | object | No | Multi-platform messaging config (see [Messaging](messaging.md)). Overrides `discord`. |
+| `discord` | object | No | Discord connection settings (legacy, use `messaging` for new agents) |
 | `memory` | object | No | Memory retention policies |
 | `llm` | object | Yes | LLM provider and model settings |
 
@@ -152,9 +153,34 @@ MCP tools are prefixed with `mcp_{serverName}_` to avoid name collisions with HT
 
 MCP servers are connected on agent startup and disconnected on shutdown. If a server fails to connect, the agent continues without it.
 
+## `messaging`
+
+Multi-platform messaging configuration. See [Messaging](messaging.md) for full setup guides.
+
+```json
+{
+  "messaging": {
+    "platform": "slack",
+    "config": {
+      "channels": {
+        "general": "my-channel"
+      }
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `platform` | string | Yes | `"discord"` or `"slack"` |
+| `config.channels` | object or array | Yes | Channels the agent listens on |
+
+!!! note
+    Requires `index-v2.js` entry point. Set `command: ["node", "src/index-v2.js"]` in Helm values.
+
 ## `discord`
 
-Discord connection and routing settings.
+Discord connection and routing settings. Used by the legacy `index.js` entry point, or when `messaging.platform` is `"discord"`.
 
 ```json
 {
@@ -274,7 +300,9 @@ These are set on the container, not in `character.json`.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `CHARACTER_FILE` | Yes | Path to `character.json` (e.g., `/config/character.json`) |
-| `DISCORD_BOT_TOKEN` | Yes | Discord bot token |
+| `DISCORD_BOT_TOKEN` | Discord agents | Discord bot token |
+| `SLACK_BOT_TOKEN` | Slack agents | Slack Bot User OAuth Token (`xoxb-...`) |
+| `SLACK_APP_TOKEN` | Slack agents | Slack App-Level Token for Socket Mode (`xapp-...`) |
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key |
 | `DATABASE_URL` | No | Postgres connection string. Omit for in-memory mode. |
 | `DISCORD_WEBHOOK_URL` | No | Discord webhook URL for cron mode output. |
