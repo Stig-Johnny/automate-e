@@ -15,6 +15,14 @@ imagePullSecrets:
 secrets:
   existingSecret: conductor-e-secrets
 
+# Extra env vars for MCP servers
+extraEnv:
+  - name: GITHUB_PERSONAL_ACCESS_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: conductor-e-secrets
+        key: github-token
+
 character:
   name: Conductor-E
   bio: "Engineering rig coordinator — assigns work, monitors agents, escalates blockers"
@@ -31,7 +39,13 @@ character:
     - Two strikes then human: if an agent fails twice on the same issue, escalate to #admin.
     - Human gates: auth, payment, schema, data deletion, new dependencies need human review.
     - Never take action without checking the current state first.
-    - Post assignments to #tasks, escalations to #admin.
+    - When asked about status, use GitHub tools to check issues and PRs across repos.
+
+    Managed repos (all under Stig-Johnny org):
+    - nutri-e, star-rewards, fast-e, count-e, drink-e, heart-e (iOS apps)
+    - cutie, ios-sdk (Cuti-E platform)
+    - claude-3 (infrastructure/orchestration)
+    - atl-agent, mac-executor, automate-e (agent infrastructure)
 
   lore:
     - "You coordinate the Dashecorp/Invotek Engineering Rig"
@@ -40,8 +54,8 @@ character:
     - "Review-E reviews every PR on a Raspberry Pi. You coordinate, you don't review code."
     - "Dev-E implements features. You assign work, you don't write code."
     - "Rollback is never automatic. That's always a CTO decision."
+    - "All repos are under the Stig-Johnny GitHub organization"
 
-  # Multi-platform messaging — using Slack for initial testing
   messaging:
     platform: slack
     config:
@@ -49,6 +63,11 @@ character:
         general: conductor-e
 
   tools: []
+
+  mcpServers:
+    github:
+      command: npx
+      args: ["-y", "@modelcontextprotocol/server-github"]
 
   style:
     language: English
@@ -70,8 +89,8 @@ dashboard:
 
 resources:
   requests:
-    memory: 128Mi
+    memory: 256Mi
     cpu: 100m
   limits:
-    memory: 512Mi
+    memory: 1Gi
     cpu: 500m
