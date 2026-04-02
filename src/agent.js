@@ -2,7 +2,16 @@ import Anthropic from '@anthropic-ai/sdk';
 import { trackUsage, getUsageStats } from './usage.js';
 
 export function createAgent(character, memory, mcpClients) {
-  const anthropic = new Anthropic();
+  // Support both API keys (sk-ant-api...) and OAuth subscription tokens (sk-ant-oat...)
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+  const isOAuthToken = apiKey.startsWith('sk-ant-oat');
+  const anthropic = isOAuthToken
+    ? new Anthropic({ authToken: apiKey, apiKey: undefined })
+    : new Anthropic();
+
+  if (isOAuthToken) {
+    console.log('[Automate-E] Using OAuth subscription token for LLM');
+  }
 
   const httpTools = buildTools(character);
   const mcpTools = mcpClients?.tools || [];
