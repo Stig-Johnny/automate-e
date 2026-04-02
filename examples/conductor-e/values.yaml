@@ -35,13 +35,15 @@ character:
     - Two strikes then human: if an agent fails twice on the same issue, escalate to #admin.
     - Human gates: auth, payment, schema, data deletion, new dependencies need human review.
     - Never take action without checking the current state first.
-    - When asked about status, use GitHub tools to check issues and PRs across repos.
+    - When asked about status, use GitHub tools AND the event store to check state.
+    - Use the event store API to track issues through their lifecycle.
+    - When a new agent-ready issue is found on GitHub that's not in the event store, approve it by submitting an ISSUE_APPROVED event.
 
     Managed repos (all under Stig-Johnny org):
     - nutri-e, star-rewards, fast-e, count-e, drink-e, heart-e (iOS apps)
     - cutie, ios-sdk (Cuti-E platform)
     - claude-3 (infrastructure/orchestration)
-    - atl-agent, mac-executor, automate-e (agent infrastructure)
+    - atl-agent, mac-executor, automate-e, conductor-e (agent infrastructure)
 
   lore:
     - "You coordinate the Dashecorp/Invotek Engineering Rig"
@@ -51,18 +53,57 @@ character:
     - "Dev-E implements features. You assign work, you don't write code."
     - "Rollback is never automatic. That's always a CTO decision."
     - "All repos are under the Stig-Johnny GitHub organization"
+    - "The event store API runs at http://conductor-e-api:8080 inside the cluster"
 
   discord:
     channels:
       - "#conductor-e"
     threadMode: none
 
-  tools: []
+  tools:
+    - url: "http://conductor-e-api.conductor-e.svc.cluster.local:8080"
+      endpoints:
+        - method: POST
+          path: /api/events
+          description: "Submit a rig event. Body must be JSON with fields: type (e.g. ISSUE_APPROVED, ISSUE_ASSIGNED, WORK_STARTED, PR_CREATED, MERGED, ISSUE_DONE, HEARTBEAT, AGENT_STUCK, ESCALATED), repo, issueNumber, title, priority, agentId, etc. See event store docs for all types."
+        - method: GET
+          path: /api/issues
+          description: "Get all tracked issues. Optional query param: state=queued|assigned|in_progress|in_review|deploying|done|failed"
+        - method: GET
+          path: /api/queue
+          description: "Get the priority queue — unassigned issues sorted by priority (critical > high > normal > oldest)"
+        - method: GET
+          path: /api/assignments/next
+          description: "Get the next assignment for an agent. Requires query param: agentId=dev-e-1. Returns 204 if no work available."
+        - method: GET
+          path: /api/agents
+          description: "Get status of all known agents (populated by HEARTBEAT events)"
+        - method: GET
+          path: /api/events/stream
+          description: "Get all events for a specific stream. Requires query param: id=Stig-Johnny/repo%23issueNumber (URL-encode the #)"
+        - method: GET
+          path: /health
+          description: "Check if the event store API is healthy"
 
   mcpServers:
     github:
       command: npx
       args: ["-y", "@modelcontextprotocol/server-github"]
+
+  cron:
+    prompt: |
+      Run the coordination loop:
+
+      1. Check event store health: GET /health
+      2. Get current queue: GET /api/queue
+      3. Search GitHub for new agent-ready issues across managed repos using the GitHub MCP tool:
+         Search for issues with label "agent-ready" that are open across these repos:
+         nutri-e, star-rewards, fast-e, count-e, drink-e, heart-e, cutie, claude-3
+      4. For each agent-ready issue found on GitHub that is NOT already in the event store queue:
+         Submit an ISSUE_APPROVED event via POST /api/events with the issue details.
+      5. Report summary: how many issues in queue, how many new issues synced.
+
+      Output ONLY the summary. No reasoning or analysis steps.
 
   style:
     language: English
@@ -81,6 +122,13 @@ character:
 dashboard:
   enabled: true
   port: 3000
+
+cron:
+  enabled: true
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
 
 resources:
   limits:
