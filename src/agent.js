@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { trackUsage, getUsageStats } from './usage.js';
+import { reportTokenUsage } from './conductor.js';
 
 export function createAgent(character, memory, mcpClients) {
   // Support both API keys (sk-ant-api...) and OAuth subscription tokens (sk-ant-oat...)
@@ -57,6 +58,12 @@ export function createAgent(character, memory, mcpClients) {
 
         // Track token usage and cost
         const usageInfo = trackUsage(character.llm.model, response.usage);
+        reportTokenUsage({
+          model: character.llm.model,
+          inputTokens: usageInfo?.inputTokens ?? 0,
+          outputTokens: usageInfo?.outputTokens ?? 0,
+          costUsd: usageInfo?.costUsd ?? 0,
+        });
         if (dashboard && usageInfo) {
           dashboard.addLog('info', `LLM: ${usageInfo.inputTokens} in / ${usageInfo.outputTokens} out, $${usageInfo.costUsd.toFixed(4)}`);
           if (dashboard.updateUsage) dashboard.updateUsage(getUsageStats());
