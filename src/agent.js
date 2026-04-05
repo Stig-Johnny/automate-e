@@ -167,6 +167,7 @@ function createCliAgent(character, memory, mcpClients) {
         '--model', character.llm.model,
         '--system-prompt', system,
         '--max-turns', '5',
+        '--dangerously-skip-permissions',
       ];
 
       // Write a temp MCP config file if the character has MCP servers
