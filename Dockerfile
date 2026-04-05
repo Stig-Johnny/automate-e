@@ -1,6 +1,9 @@
 FROM node:20-slim
 WORKDIR /app
 
+# Install Claude Code CLI — required for OAuth subscription token (sk-ant-oat) mode
+RUN npm install -g @anthropic-ai/claude-code
+
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
