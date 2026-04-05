@@ -1,8 +1,31 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { spawnSync } from 'child_process';
+import { writeFileSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { trackUsage, getUsageStats } from './usage.js';
 import { reportTokenUsage } from './conductor.js';
 
+// Use CLI mode when CLAUDE_CLI_MODE=true or when the API key is an OAuth
+// subscription token (sk-ant-oat...) — those tokens require the Claude Code CLI.
+function useCliMode() {
+  if (process.env.CLAUDE_CLI_MODE === 'true') return true;
+  const apiKey = process.env.ANTHROPIC_API_KEY || '';
+  return apiKey.startsWith('sk-ant-oat');
+}
+
 export function createAgent(character, memory, mcpClients) {
+  if (useCliMode()) {
+    return createCliAgent(character, memory, mcpClients);
+  }
+  return createSdkAgent(character, memory, mcpClients);
+}
+
+// ---------------------------------------------------------------------------
+// SDK agent — existing behaviour for sk-ant-api keys
+// ---------------------------------------------------------------------------
+
+function createSdkAgent(character, memory, mcpClients) {
   // Support both API keys (sk-ant-api...) and OAuth subscription tokens (sk-ant-oat...)
   const apiKey = process.env.ANTHROPIC_API_KEY || '';
   const isOAuthToken = apiKey.startsWith('sk-ant-oat');
@@ -108,6 +131,103 @@ export function createAgent(character, memory, mcpClients) {
     },
   };
 }
+
+// ---------------------------------------------------------------------------
+// CLI agent — uses `claude -p` for OAuth subscription tokens
+// ---------------------------------------------------------------------------
+
+function createCliAgent(character, memory, mcpClients) {
+  console.log('[Automate-E] Using Claude Code CLI for LLM');
+  const systemPrompt = buildSystemPrompt(character);
+
+  return {
+    async process(message, context, dashboard) {
+      const history = await memory.getConversation(context.threadId, 20);
+      const facts = await memory.getFacts(context.userId);
+
+      let system = systemPrompt;
+      if (facts.length > 0) {
+        system += `\n\n## Known facts about this user\n${facts.map(f => `- ${f}`).join('\n')}`;
+      }
+
+      // Embed conversation history inline — the CLI doesn't accept a messages[]
+      // array so we prepend prior turns as labelled text.
+      const historyLines = history.map(h =>
+        `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`
+      );
+      const userMessage = formatUserMessage(message, context);
+      const fullPrompt = historyLines.length > 0
+        ? `${historyLines.join('\n')}\nUser: ${userMessage}`
+        : userMessage;
+
+      // Args array — avoids any shell-injection risk from prompt content
+      const args = [
+        '-p', fullPrompt,
+        '--output-format', 'json',
+        '--model', character.llm.model,
+        '--system-prompt', system,
+        '--max-turns', '5',
+      ];
+
+      // Write a temp MCP config file if the character has MCP servers
+      let mcpConfigPath = null;
+      if (character.mcpServers && Object.keys(character.mcpServers).length > 0) {
+        mcpConfigPath = join(tmpdir(), `automate-e-mcp-${Date.now()}.json`);
+        writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: character.mcpServers }));
+        args.push('--mcp-config', mcpConfigPath);
+      }
+
+      let reply = 'Done.';
+      try {
+        console.log(`[Automate-E] CLI call: model=${character.llm.model}`);
+        const result = spawnSync('claude', args, {
+          encoding: 'utf8',
+          env: process.env,
+          maxBuffer: 10 * 1024 * 1024,
+          timeout: 120_000,
+        });
+
+        if (result.error) {
+          throw result.error;
+        }
+        if (result.status !== 0) {
+          const errMsg = (result.stderr || '').trim() || 'unknown error';
+          throw new Error(`Claude CLI exited with status ${result.status}: ${errMsg}`);
+        }
+
+        const output = JSON.parse(result.stdout);
+        reply = output.result || 'Done.';
+        const costUsd = output.cost_usd || 0;
+        console.log(`[Automate-E] CLI response: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}`);
+
+        // CLI JSON output doesn't expose per-token counts; report cost only
+        reportTokenUsage({
+          model: character.llm.model,
+          inputTokens: 0,
+          outputTokens: 0,
+          costUsd,
+        });
+        if (dashboard) {
+          dashboard.addLog('info', `CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}`);
+        }
+      } finally {
+        if (mcpConfigPath) {
+          try { unlinkSync(mcpConfigPath); } catch {}
+        }
+      }
+
+      // Save to memory
+      await memory.saveMessage(context.threadId, 'user', message, context.userId);
+      await memory.saveMessage(context.threadId, 'assistant', reply);
+
+      return reply;
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shared helpers (used by both SDK and CLI agents)
+// ---------------------------------------------------------------------------
 
 function buildSystemPrompt(character) {
   return `${character.personality}
