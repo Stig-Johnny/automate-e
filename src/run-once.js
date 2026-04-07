@@ -13,8 +13,10 @@ import { createAgent } from './agent.js';
 import { createMemory } from './memory.js';
 import { connectMcpServers } from './mcp.js';
 import { getUsageSummary } from './usage.js';
+import { startTokenRefresh } from './github-token.js';
 
 const character = loadCharacter();
+startTokenRefresh();
 
 if (!character.cron?.prompt) {
   console.error('[Automate-E] One-shot mode requires character.cron.prompt');

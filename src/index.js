@@ -6,8 +6,10 @@ import { createDashboard } from './dashboard/server.js';
 import { connectMcpServers } from './mcp.js';
 import { createWebhookHandler } from './webhook.js';
 import { startHeartbeat } from './heartbeat.js';
+import { startTokenRefresh } from './github-token.js';
 
 const character = loadCharacter();
+startTokenRefresh();
 const heartbeat = startHeartbeat(character);
 
 const client = new Client({
