@@ -70,7 +70,14 @@ client.once('ready', () => {
     console.log(`[Automate-E] Cron enabled: every ${intervalMs / 1000}s → #${character.cron.channelId}`);
     dashboard.addLog('info', `Cron: every ${intervalMs / 1000}s`);
 
+    let cronRunning = false;
     const runCron = async () => {
+      if (cronRunning) {
+        console.log('[Automate-E] Cron skipped: previous run still active');
+        dashboard.addLog('info', 'Cron: skipped (busy)');
+        return;
+      }
+      cronRunning = true;
       try {
         const channel = await client.channels.fetch(character.cron.channelId);
         if (!channel) {
@@ -138,6 +145,8 @@ client.once('ready', () => {
       } catch (error) {
         console.error('[Automate-E] Cron error:', error.message);
         dashboard.addLog('error', `Cron: ${error.message}`);
+      } finally {
+        cronRunning = false;
       }
     };
 
