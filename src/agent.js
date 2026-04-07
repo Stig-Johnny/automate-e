@@ -174,11 +174,14 @@ function createCliAgent(character, memory, mcpClients) {
         args.push('--mcp-config', mcpConfigPath);
       }
 
+      // Use character.workDir as the CLI working directory if set
+      const cwd = character.workDir || undefined;
+      if (cwd) console.log(`[Automate-E] CLI cwd: ${cwd}`);
       console.log(`[Automate-E] CLI call: model=${character.llm.model}`);
 
       // Async spawn with periodic progress heartbeats
       const reply = await new Promise((resolve, reject) => {
-        const proc = spawn('claude', args, { env: process.env });
+        const proc = spawn('claude', args, { env: process.env, cwd });
         const timeoutMs = character.llm?.timeoutMs ?? 300_000;
         let stdout = '';
         let startTime = Date.now();
