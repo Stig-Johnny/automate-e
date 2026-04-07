@@ -183,7 +183,7 @@ function createCliAgent(character, memory, mcpClients) {
           encoding: 'utf8',
           env: process.env,
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 120_000,
+          timeout: 300_000,
         });
 
         if (result.error) {
