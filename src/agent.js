@@ -160,7 +160,7 @@ function createCliAgent(character, memory, mcpClients) {
 
       const args = [
         '-p', fullPrompt,
-        '--output-format', 'stream-json',
+        '--output-format', 'json',
         '--model', character.llm.model,
         '--system-prompt', system,
         '--max-turns', String(character.llm?.maxTurns ?? 10),
@@ -176,113 +176,63 @@ function createCliAgent(character, memory, mcpClients) {
 
       console.log(`[Automate-E] CLI call: model=${character.llm.model}`);
 
+      // Async spawn with periodic progress heartbeats
       const reply = await new Promise((resolve, reject) => {
         const proc = spawn('claude', args, { env: process.env });
         const timeoutMs = character.llm?.timeoutMs ?? 300_000;
-        const timer = setTimeout(() => {
+        let stdout = '';
+        let startTime = Date.now();
+
+        const killTimer = setTimeout(() => {
           proc.kill('SIGTERM');
           reject(new Error('CLI timeout'));
         }, timeoutMs);
 
-        let buffer = '';
-        let resultText = '';
-        let lastToolName = '';
-        let turnCount = 0;
+        // Post progress heartbeats every 60s while CLI is running
+        const heartbeatTimer = setInterval(() => {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          const msg = `⏳ Still working... (${elapsed}s)`;
+          console.log(`[Automate-E] ${msg}`);
+          if (onProgress) onProgress(msg);
+        }, 60_000);
 
-        proc.stdout.on('data', (chunk) => {
-          buffer += chunk.toString();
-          // stream-json outputs one JSON object per line
-          const lines = buffer.split('\n');
-          buffer = lines.pop(); // keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const event = JSON.parse(line);
-              handleStreamEvent(event);
-            } catch {}
-          }
-        });
-
-        function handleStreamEvent(event) {
-          // Tool use — emit progress
-          if (event.type === 'assistant' && event.subtype === 'tool_use') {
-            const toolName = event.tool_name || event.name || '';
-            turnCount++;
-            if (toolName && toolName !== lastToolName) {
-              lastToolName = toolName;
-              const emoji = toolName.includes('Bash') || toolName.includes('bash') ? '🔧'
-                : toolName.includes('Edit') || toolName.includes('Write') ? '📝'
-                : toolName.includes('Read') ? '📖'
-                : toolName.includes('fetch') || toolName.includes('Fetch') ? '🌐'
-                : '⚙️';
-              const msg = `${emoji} ${toolName}`;
-              console.log(`[Automate-E] CLI turn ${turnCount}: ${msg}`);
-              if (dashboard) dashboard.addLog('info', `CLI: ${msg}`);
-              if (onProgress) onProgress(msg);
-            }
-          }
-
-          // Text output — accumulate for final result
-          if (event.type === 'assistant' && event.subtype === 'text') {
-            resultText += event.text || '';
-          }
-
-          // Final result
-          if (event.type === 'result') {
-            const costUsd = event.total_cost_usd || 0;
-            console.log(`[Automate-E] CLI complete: turns=${event.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${event.subtype}`);
-            reportTokenUsage({
-              model: character.llm.model,
-              inputTokens: 0,
-              outputTokens: 0,
-              costUsd,
-            });
-            if (dashboard) {
-              dashboard.addLog('info', `CLI: ${event.num_turns} turn(s), $${costUsd.toFixed(4)}`);
-            }
-            // Use the result field from the final event, or accumulated text
-            resultText = event.result || resultText || 'Done.';
-          }
-        }
-
-        proc.stderr.on('data', (chunk) => {
-          // stderr is non-fatal (npm warnings, etc.)
-        });
+        proc.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+        proc.stderr.on('data', () => {}); // ignore stderr (npm warnings)
 
         proc.on('close', (code) => {
-          clearTimeout(timer);
+          clearTimeout(killTimer);
+          clearInterval(heartbeatTimer);
           if (mcpConfigPath) {
             try { unlinkSync(mcpConfigPath); } catch {}
           }
-          // Process any remaining buffer
-          if (buffer.trim()) {
-            try {
-              handleStreamEvent(JSON.parse(buffer));
-            } catch {}
-          }
-          if (resultText) {
-            resolve(resultText);
+
+          let output;
+          try { output = stdout ? JSON.parse(stdout) : null; } catch { output = null; }
+
+          if (output) {
+            const costUsd = output.total_cost_usd || 0;
+            console.log(`[Automate-E] CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}`);
+            reportTokenUsage({ model: character.llm.model, inputTokens: 0, outputTokens: 0, costUsd });
+            if (dashboard) dashboard.addLog('info', `CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}`);
+            resolve(output.result || `CLI ${output.subtype || 'done'}`);
           } else if (code !== 0) {
-            resolve(`CLI exited with code ${code}`);
+            console.log(`[Automate-E] CLI exited ${code}, no JSON output`);
+            resolve(`CLI error (exit ${code})`);
           } else {
             resolve('Done.');
           }
         });
 
         proc.on('error', (err) => {
-          clearTimeout(timer);
-          if (mcpConfigPath) {
-            try { unlinkSync(mcpConfigPath); } catch {}
-          }
+          clearTimeout(killTimer);
+          clearInterval(heartbeatTimer);
+          if (mcpConfigPath) { try { unlinkSync(mcpConfigPath); } catch {} }
           reject(err);
         });
       });
 
-      // Save to memory
       await memory.saveMessage(context.threadId, 'user', message, context.userId);
       await memory.saveMessage(context.threadId, 'assistant', reply);
-
       return reply;
     },
   };
