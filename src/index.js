@@ -122,17 +122,17 @@ client.once('ready', () => {
           attachments: [],
         }, dashboard, onProgress);
 
-        if (response && response.trim()) {
+        // Only post meaningful responses to Discord (skip idle/empty/generic)
+        const isIdle = !response || response.trim().length < 20
+          || /^(CLI |Done|idle|no work|no assignment)/i.test(response.trim());
+
+        if (response && response.trim() && !isIdle) {
           if (activeThread) {
-            // Post final result to the thread
             await activeThread.send(response.slice(0, 2000));
             dashboard.addLog('info', `Cron: posted result to thread`);
           } else {
-            // No thread (idle heartbeat) — post to channel only if meaningful
-            if (!response.toLowerCase().includes('idle') && !response.toLowerCase().includes('no work')) {
-              await channel.send(response.slice(0, 2000));
-              dashboard.addLog('info', `Cron: posted to #${channel.name}`);
-            }
+            await channel.send(response.slice(0, 2000));
+            dashboard.addLog('info', `Cron: posted to #${channel.name}`);
           }
         }
       } catch (error) {
