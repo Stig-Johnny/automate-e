@@ -170,13 +170,11 @@ function createCliAgent(character, memory, mcpClients) {
         '--dangerously-skip-permissions',
       ];
 
-      // Write a temp MCP config file if the character has MCP servers
+      // MCP servers are already connected at the Automate-E process level.
+      // Don't pass --mcp-config to the CLI — it would start duplicate MCP
+      // server processes (e.g., npx downloads) that may fail or conflict.
+      // The CLI can use its built-in fetch tool for HTTP APIs instead.
       let mcpConfigPath = null;
-      if (character.mcpServers && Object.keys(character.mcpServers).length > 0) {
-        mcpConfigPath = join(tmpdir(), `automate-e-mcp-${Date.now()}.json`);
-        writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: character.mcpServers }));
-        args.push('--mcp-config', mcpConfigPath);
-      }
 
       let reply = 'Done.';
       try {
