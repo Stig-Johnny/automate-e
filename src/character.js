@@ -74,6 +74,7 @@ export function loadCharacter() {
   character.mcpServers = character.mcpServers || {};
   character.cron = character.cron || null;
   character.webhooks = character.webhooks || {};
+  character.heartbeat = character.heartbeat || null;
 
   console.log(`[Automate-E] Loaded character: ${character.name}`);
   return character;
