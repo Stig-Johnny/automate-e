@@ -5,8 +5,10 @@ import { createMemory } from './memory.js';
 import { createDashboard } from './dashboard/server.js';
 import { connectMcpServers } from './mcp.js';
 import { createWebhookHandler } from './webhook.js';
+import { startHeartbeat } from './heartbeat.js';
 
 const character = loadCharacter();
+const heartbeat = startHeartbeat(character);
 
 const client = new Client({
   intents: [
@@ -59,7 +61,70 @@ client.once('ready', () => {
   console.log(`[Automate-E] Listening on channels: ${character.discord.channels.join(', ')}`);
   console.log(`[Automate-E] DMs: enabled`);
   dashboard.addLog('info', `Logged in as ${client.user.tag}`);
+
+  // In-process cron: poll on a schedule and post results to a channel thread
+  if (character.cron?.prompt && character.cron?.channelId) {
+    const intervalMs = parseCronInterval(character.cron.schedule) || 300_000;
+    console.log(`[Automate-E] Cron enabled: every ${intervalMs / 1000}s → #${character.cron.channelId}`);
+    dashboard.addLog('info', `Cron: every ${intervalMs / 1000}s`);
+
+    const runCron = async () => {
+      try {
+        const channel = await client.channels.fetch(character.cron.channelId);
+        if (!channel) {
+          console.error(`[Automate-E] Cron channel ${character.cron.channelId} not found`);
+          return;
+        }
+
+        dashboard.addLog('info', 'Cron: running work loop');
+        const response = await agent.process(character.cron.prompt, {
+          userId: client.user.id,
+          userName: character.name,
+          channelId: character.cron.channelId,
+          threadId: `cron-${character.name}`,
+          attachments: [],
+        }, dashboard);
+
+        if (response && response.trim()) {
+          // Post to channel — Automate-E will auto-create a thread if threadMode is set
+          const msg = await channel.send(response.slice(0, 2000));
+          dashboard.addLog('info', `Cron: posted to #${channel.name}`);
+
+          // If response contains an assignment, create a named thread
+          const assignmentMatch = response.match(/ASSIGNMENT:\s*(\S+#\d+)\s*—\s*(.+)/);
+          if (assignmentMatch) {
+            const [, issueId, title] = assignmentMatch;
+            try {
+              const thread = await msg.startThread({
+                name: `🔧 ${issueId} — ${title.slice(0, 80)}`,
+                autoArchiveDuration: 4320,
+              });
+              await thread.send(`Starting work on **${issueId}**\n\nI'll post updates here as I implement this issue.`);
+              dashboard.addLog('info', `Cron: created thread for ${issueId}`);
+            } catch (err) {
+              console.error(`[Automate-E] Failed to create assignment thread: ${err.message}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Automate-E] Cron error:', error.message);
+        dashboard.addLog('error', `Cron: ${error.message}`);
+      }
+    };
+
+    // First run after a short delay, then on interval
+    setTimeout(runCron, 15_000);
+    setInterval(runCron, intervalMs);
+  }
 });
+
+// Parse cron schedule shorthand: "*/5 * * * *" → 300000ms
+function parseCronInterval(schedule) {
+  if (!schedule) return null;
+  const match = schedule.match(/^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*/);
+  if (match) return parseInt(match[1]) * 60 * 1000;
+  return null;
+}
 
 client.on('messageCreate', async (message) => {
   if (message.author.id === client.user.id) return;
