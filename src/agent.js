@@ -189,13 +189,28 @@ function createCliAgent(character, memory, mcpClients) {
         if (result.error) {
           throw result.error;
         }
-        if (result.status !== 0) {
+
+        // CLI may exit with status 1 but still have valid JSON output
+        // (e.g., error_max_turns, permission_denied). Parse stdout first.
+        let output;
+        try {
+          output = result.stdout ? JSON.parse(result.stdout) : null;
+        } catch {
+          output = null;
+        }
+
+        if (result.status !== 0 && !output) {
           const errMsg = (result.stderr || '').trim() || 'unknown error';
           throw new Error(`Claude CLI exited with status ${result.status}: ${errMsg}`);
         }
 
-        const output = JSON.parse(result.stdout);
-        reply = output.result || 'Done.';
+        if (result.status !== 0 && output) {
+          // CLI returned an error result — still usable
+          console.log(`[Automate-E] CLI error: ${output.subtype || 'unknown'}, turns=${output.num_turns}`);
+          reply = output.result || `CLI error: ${output.subtype}`;
+        } else {
+          reply = output?.result || 'Done.';
+        }
         const costUsd = output.cost_usd || 0;
         console.log(`[Automate-E] CLI response: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}`);
 
