@@ -166,7 +166,7 @@ function createCliAgent(character, memory, mcpClients) {
         '--output-format', 'json',
         '--model', character.llm.model,
         '--system-prompt', system,
-        '--max-turns', '5',
+        '--max-turns', String(character.llm?.maxTurns ?? 10),
         '--dangerously-skip-permissions',
       ];
 
