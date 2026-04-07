@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { spawnSync } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -141,7 +141,7 @@ function createCliAgent(character, memory, mcpClients) {
   const systemPrompt = buildSystemPrompt(character);
 
   return {
-    async process(message, context, dashboard) {
+    async process(message, context, dashboard, onProgress) {
       const history = await memory.getConversation(context.threadId, 20);
       const facts = await memory.getFacts(context.userId);
 
@@ -150,8 +150,6 @@ function createCliAgent(character, memory, mcpClients) {
         system += `\n\n## Known facts about this user\n${facts.map(f => `- ${f}`).join('\n')}`;
       }
 
-      // Embed conversation history inline — the CLI doesn't accept a messages[]
-      // array so we prepend prior turns as labelled text.
       const historyLines = history.map(h =>
         `${h.role === 'user' ? 'User' : 'Assistant'}: ${h.content}`
       );
@@ -160,20 +158,15 @@ function createCliAgent(character, memory, mcpClients) {
         ? `${historyLines.join('\n')}\nUser: ${userMessage}`
         : userMessage;
 
-      // Args array — avoids any shell-injection risk from prompt content
       const args = [
         '-p', fullPrompt,
-        '--output-format', 'json',
+        '--output-format', 'stream-json',
         '--model', character.llm.model,
         '--system-prompt', system,
         '--max-turns', String(character.llm?.maxTurns ?? 10),
         '--dangerously-skip-permissions',
       ];
 
-      // Pass MCP config to CLI if character opts in via llm.passMcpToCli.
-      // Default: off — MCP servers are connected at the process level and
-      // the CLI can use fetch for HTTP APIs. Enable for agents that need
-      // MCP tools (e.g., GitHub search) inside CLI one-shot calls.
       let mcpConfigPath = null;
       if (character.llm?.passMcpToCli && character.mcpServers && Object.keys(character.mcpServers).length > 0) {
         mcpConfigPath = join(tmpdir(), `automate-e-mcp-${Date.now()}.json`);
@@ -181,59 +174,110 @@ function createCliAgent(character, memory, mcpClients) {
         args.push('--mcp-config', mcpConfigPath);
       }
 
-      let reply = 'Done.';
-      try {
-        console.log(`[Automate-E] CLI call: model=${character.llm.model}`);
-        const result = spawnSync('claude', args, {
-          encoding: 'utf8',
-          env: process.env,
-          maxBuffer: 10 * 1024 * 1024,
-          timeout: character.llm?.timeoutMs ?? 300_000,
+      console.log(`[Automate-E] CLI call: model=${character.llm.model}`);
+
+      const reply = await new Promise((resolve, reject) => {
+        const proc = spawn('claude', args, { env: process.env });
+        const timeoutMs = character.llm?.timeoutMs ?? 300_000;
+        const timer = setTimeout(() => {
+          proc.kill('SIGTERM');
+          reject(new Error('CLI timeout'));
+        }, timeoutMs);
+
+        let buffer = '';
+        let resultText = '';
+        let lastToolName = '';
+        let turnCount = 0;
+
+        proc.stdout.on('data', (chunk) => {
+          buffer += chunk.toString();
+          // stream-json outputs one JSON object per line
+          const lines = buffer.split('\n');
+          buffer = lines.pop(); // keep incomplete line in buffer
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const event = JSON.parse(line);
+              handleStreamEvent(event);
+            } catch {}
+          }
         });
 
-        if (result.error) {
-          throw result.error;
+        function handleStreamEvent(event) {
+          // Tool use — emit progress
+          if (event.type === 'assistant' && event.subtype === 'tool_use') {
+            const toolName = event.tool_name || event.name || '';
+            turnCount++;
+            if (toolName && toolName !== lastToolName) {
+              lastToolName = toolName;
+              const emoji = toolName.includes('Bash') || toolName.includes('bash') ? '🔧'
+                : toolName.includes('Edit') || toolName.includes('Write') ? '📝'
+                : toolName.includes('Read') ? '📖'
+                : toolName.includes('fetch') || toolName.includes('Fetch') ? '🌐'
+                : '⚙️';
+              const msg = `${emoji} ${toolName}`;
+              console.log(`[Automate-E] CLI turn ${turnCount}: ${msg}`);
+              if (dashboard) dashboard.addLog('info', `CLI: ${msg}`);
+              if (onProgress) onProgress(msg);
+            }
+          }
+
+          // Text output — accumulate for final result
+          if (event.type === 'assistant' && event.subtype === 'text') {
+            resultText += event.text || '';
+          }
+
+          // Final result
+          if (event.type === 'result') {
+            const costUsd = event.total_cost_usd || 0;
+            console.log(`[Automate-E] CLI complete: turns=${event.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${event.subtype}`);
+            reportTokenUsage({
+              model: character.llm.model,
+              inputTokens: 0,
+              outputTokens: 0,
+              costUsd,
+            });
+            if (dashboard) {
+              dashboard.addLog('info', `CLI: ${event.num_turns} turn(s), $${costUsd.toFixed(4)}`);
+            }
+            // Use the result field from the final event, or accumulated text
+            resultText = event.result || resultText || 'Done.';
+          }
         }
 
-        // CLI may exit with status 1 but still have valid JSON output
-        // (e.g., error_max_turns, permission_denied). Parse stdout first.
-        let output;
-        try {
-          output = result.stdout ? JSON.parse(result.stdout) : null;
-        } catch {
-          output = null;
-        }
-
-        if (result.status !== 0 && !output) {
-          const errMsg = (result.stderr || '').trim() || 'unknown error';
-          throw new Error(`Claude CLI exited with status ${result.status}: ${errMsg}`);
-        }
-
-        if (result.status !== 0 && output) {
-          // CLI returned an error result — still usable
-          console.log(`[Automate-E] CLI error: ${output.subtype || 'unknown'}, turns=${output.num_turns}`);
-          reply = output.result || `CLI error: ${output.subtype}`;
-        } else {
-          reply = output?.result || 'Done.';
-        }
-        const costUsd = output.cost_usd || 0;
-        console.log(`[Automate-E] CLI response: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}`);
-
-        // CLI JSON output doesn't expose per-token counts; report cost only
-        reportTokenUsage({
-          model: character.llm.model,
-          inputTokens: 0,
-          outputTokens: 0,
-          costUsd,
+        proc.stderr.on('data', (chunk) => {
+          // stderr is non-fatal (npm warnings, etc.)
         });
-        if (dashboard) {
-          dashboard.addLog('info', `CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}`);
-        }
-      } finally {
-        if (mcpConfigPath) {
-          try { unlinkSync(mcpConfigPath); } catch {}
-        }
-      }
+
+        proc.on('close', (code) => {
+          clearTimeout(timer);
+          if (mcpConfigPath) {
+            try { unlinkSync(mcpConfigPath); } catch {}
+          }
+          // Process any remaining buffer
+          if (buffer.trim()) {
+            try {
+              handleStreamEvent(JSON.parse(buffer));
+            } catch {}
+          }
+          if (resultText) {
+            resolve(resultText);
+          } else if (code !== 0) {
+            resolve(`CLI exited with code ${code}`);
+          } else {
+            resolve('Done.');
+          }
+        });
+
+        proc.on('error', (err) => {
+          clearTimeout(timer);
+          if (mcpConfigPath) {
+            try { unlinkSync(mcpConfigPath); } catch {}
+          }
+          reject(err);
+        });
+      });
 
       // Save to memory
       await memory.saveMessage(context.threadId, 'user', message, context.userId);

@@ -79,32 +79,59 @@ client.once('ready', () => {
         }
 
         dashboard.addLog('info', 'Cron: running work loop');
+
+        // Track the active thread for progress updates
+        let activeThread = null;
+        let threadCreated = false;
+        let lastProgressTime = 0;
+        let progressCount = 0;
+        const PROGRESS_THROTTLE_MS = 15_000; // max 1 update per 15s
+
+        const onProgress = async (msg) => {
+          progressCount++;
+          // Create thread on first tool call (means we got an assignment)
+          if (!threadCreated && progressCount === 1) {
+            threadCreated = true;
+            try {
+              const startMsg = await channel.send(`🔧 **${character.name}** picked up work — implementing...`);
+              activeThread = await startMsg.startThread({
+                name: `🔧 ${character.name} — ${new Date().toISOString().slice(0, 16)}`,
+                autoArchiveDuration: 4320,
+              });
+              dashboard.addLog('info', 'Cron: created work thread');
+            } catch (err) {
+              console.error(`[Automate-E] Failed to create thread: ${err.message}`);
+            }
+          }
+          if (!activeThread) return;
+          const now = Date.now();
+          if (now - lastProgressTime < PROGRESS_THROTTLE_MS) return;
+          lastProgressTime = now;
+          try {
+            await activeThread.send(msg);
+          } catch (err) {
+            console.error(`[Automate-E] Failed to post progress: ${err.message}`);
+          }
+        };
+
         const response = await agent.process(character.cron.prompt, {
           userId: client.user.id,
           userName: character.name,
           channelId: character.cron.channelId,
           threadId: `cron-${character.name}`,
           attachments: [],
-        }, dashboard);
+        }, dashboard, onProgress);
 
         if (response && response.trim()) {
-          // Post to channel — Automate-E will auto-create a thread if threadMode is set
-          const msg = await channel.send(response.slice(0, 2000));
-          dashboard.addLog('info', `Cron: posted to #${channel.name}`);
-
-          // If response contains an assignment, create a named thread
-          const assignmentMatch = response.match(/ASSIGNMENT:\s*(\S+#\d+)\s*—\s*(.+)/);
-          if (assignmentMatch) {
-            const [, issueId, title] = assignmentMatch;
-            try {
-              const thread = await msg.startThread({
-                name: `🔧 ${issueId} — ${title.slice(0, 80)}`,
-                autoArchiveDuration: 4320,
-              });
-              await thread.send(`Starting work on **${issueId}**\n\nI'll post updates here as I implement this issue.`);
-              dashboard.addLog('info', `Cron: created thread for ${issueId}`);
-            } catch (err) {
-              console.error(`[Automate-E] Failed to create assignment thread: ${err.message}`);
+          if (activeThread) {
+            // Post final result to the thread
+            await activeThread.send(response.slice(0, 2000));
+            dashboard.addLog('info', `Cron: posted result to thread`);
+          } else {
+            // No thread (idle heartbeat) — post to channel only if meaningful
+            if (!response.toLowerCase().includes('idle') && !response.toLowerCase().includes('no work')) {
+              await channel.send(response.slice(0, 2000));
+              dashboard.addLog('info', `Cron: posted to #${channel.name}`);
             }
           }
         }
