@@ -23,7 +23,10 @@ export async function ensureCodexAuth(character, onProgress) {
 
   if (!needsDeviceAuth) return;
   enforceDeviceAuthCooldown();
-  if (await isCodexLoggedIn()) return;
+  if (await isCodexLoggedIn()) {
+    clearDeviceAuthState();
+    return;
+  }
 
   if (!activeDeviceAuth) {
     activeDeviceAuth = runDeviceAuthFlow(onProgress).catch(error => {
@@ -68,9 +71,8 @@ export function abortDeviceAuthFlow() {
       activeDeviceAuthProcess.kill('SIGTERM');
       aborted = true;
     } catch {}
-    activeDeviceAuthProcess = null;
   }
-  activeDeviceAuth = null;
+  clearDeviceAuthState();
   return aborted;
 }
 
@@ -142,7 +144,7 @@ async function runDeviceAuthFlow(onProgress) {
       try {
         proc.kill('SIGTERM');
       } catch {}
-      activeDeviceAuthProcess = null;
+      clearDeviceAuthState();
       if (onProgress) {
         await onProgress('Codex login complete. Continuing...');
       }
@@ -171,7 +173,7 @@ async function runDeviceAuthFlow(onProgress) {
   try {
     proc.kill('SIGTERM');
   } catch {}
-  activeDeviceAuthProcess = null;
+  clearDeviceAuthState();
   throw new CodexAuthError(
     'Codex device auth timed out before login completed.',
     'Codex login timed out before completion. Ask again and I will send a fresh login link and code.',
@@ -223,4 +225,9 @@ function enforceDeviceAuthCooldown(now = Date.now()) {
 
 function startDeviceAuthCooldown(retryAfterMs = DEVICE_AUTH_RETRY_MS, now = Date.now()) {
   nextDeviceAuthAllowedAt = Math.max(nextDeviceAuthAllowedAt, now + retryAfterMs);
+}
+
+function clearDeviceAuthState() {
+  activeDeviceAuth = null;
+  activeDeviceAuthProcess = null;
 }

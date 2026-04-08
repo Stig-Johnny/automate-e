@@ -205,6 +205,8 @@ client.on('messageCreate', async (message) => {
 
       await message.reply(response);
     } else {
+      const controlReply = await handleControlCommand(message, message.channel);
+      if (controlReply) return;
       let thread;
       if (message.hasThread) {
         thread = message.thread;
@@ -224,8 +226,6 @@ client.on('messageCreate', async (message) => {
         }
       }
 
-      const controlReply = await handleControlCommand(message, thread);
-      if (controlReply) return;
       await thread.sendTyping();
       dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
       const progress = async (text) => {
