@@ -5,6 +5,7 @@ import { join } from 'path';
 import { reportTokenUsage } from '../../conductor.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
 import { buildCodexEnv, ensureCodexAuth } from './codex-auth.js';
+import { AgentProviderError, toAgentProviderError } from '../provider-error.js';
 
 export function createCodexCliAgent(character, memory) {
   console.log('[Automate-E] Using Codex CLI for LLM');
@@ -12,7 +13,13 @@ export function createCodexCliAgent(character, memory) {
 
   return {
     async process(message, context, dashboard, onProgress) {
-      await ensureCodexAuth(character, onProgress);
+      try {
+        await ensureCodexAuth(character, onProgress);
+      } catch (error) {
+        throw toAgentProviderError('codex-cli', error, {
+          userMessage: error.userMessage || 'Codex login is required or unavailable right now.',
+        });
+      }
 
       const history = await memory.getConversation(context.threadId, 20);
       const facts = await memory.getFacts(context.userId);
@@ -71,8 +78,13 @@ export function createCodexCliAgent(character, memory) {
 
           if (code !== 0) {
             const stderrSummary = stderr.trim().split('\n').slice(-3).join(' | ');
-            console.log(`[Automate-E] Codex CLI exited ${code}${stderrSummary ? `: ${stderrSummary}` : ''}`);
-            resolve(`Codex CLI error (exit ${code})`);
+            reject(new AgentProviderError(
+              'codex-cli',
+              `Codex CLI exited ${code}${stderrSummary ? `: ${stderrSummary}` : ''}`,
+              {
+                userMessage: 'Codex is unavailable right now. Trying the next configured provider.',
+              },
+            ));
             return;
           }
 
@@ -87,7 +99,9 @@ export function createCodexCliAgent(character, memory) {
           clearTimeout(killTimer);
           clearInterval(heartbeatTimer);
           cleanupTempFile(outputPath);
-          reject(err);
+          reject(toAgentProviderError('codex-cli', err, {
+            userMessage: 'Codex could not start. Trying the next configured provider.',
+          }));
         });
       });
 

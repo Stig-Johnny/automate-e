@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveAgentProvider } from './agent/provider-mode.js';
 import { buildCodexCliArgs } from './agent/providers/codex-cli.js';
+import { buildProviderChain, resolveCharacterForProvider } from './agent/provider-chain.js';
 import {
   buildCodexEnv,
   ensureCodexAuth,
@@ -38,6 +39,48 @@ test('resolveAgentProvider respects explicit codex-cli provider', () => {
 
   const provider = resolveAgentProvider({ llm: { provider: 'codex-cli' } });
   assert.equal(provider, 'codex-cli');
+});
+
+test('buildProviderChain keeps primary provider first and appends fallbacks', () => {
+  const chain = buildProviderChain({
+    llm: {
+      provider: 'codex-cli',
+      fallbackProviders: ['claude-cli', 'anthropic'],
+    },
+  });
+
+  assert.deepEqual(chain, ['codex-cli', 'claude-cli', 'anthropic']);
+});
+
+test('buildProviderChain deduplicates duplicate providers', () => {
+  const chain = buildProviderChain({
+    llm: {
+      provider: 'codex-cli',
+      fallbackProviders: ['codex-cli', 'claude-cli', 'claude-cli'],
+    },
+  });
+
+  assert.deepEqual(chain, ['codex-cli', 'claude-cli']);
+});
+
+test('resolveCharacterForProvider applies provider-specific llm overrides', () => {
+  const character = resolveCharacterForProvider({
+    llm: {
+      provider: 'codex-cli',
+      model: 'gpt-5.4',
+      timeoutMs: 1000,
+      providers: {
+        'claude-cli': {
+          model: 'sonnet',
+          timeoutMs: 2000,
+        },
+      },
+    },
+  }, 'claude-cli');
+
+  assert.equal(character.llm.provider, 'claude-cli');
+  assert.equal(character.llm.model, 'sonnet');
+  assert.equal(character.llm.timeoutMs, 2000);
 });
 
 test('buildCodexCliArgs includes cwd, output path, and prompt', () => {

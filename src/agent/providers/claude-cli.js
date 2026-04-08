@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { reportTokenUsage } from '../../conductor.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
+import { AgentProviderError, toAgentProviderError } from '../provider-error.js';
 
 export function createClaudeCliAgent(character, memory) {
   console.log('[Automate-E] Using Claude Code CLI for LLM');
@@ -75,8 +76,13 @@ export function createClaudeCliAgent(character, memory) {
           }
 
           if (code !== 0) {
-            console.log(`[Automate-E] Claude CLI exited ${code}, no JSON output`);
-            resolve(`CLI error (exit ${code})`);
+            reject(new AgentProviderError(
+              'claude-cli',
+              `Claude CLI exited ${code}, no JSON output`,
+              {
+                userMessage: 'Claude Code CLI is unavailable right now. Trying the next configured provider.',
+              },
+            ));
             return;
           }
 
@@ -87,7 +93,9 @@ export function createClaudeCliAgent(character, memory) {
           clearTimeout(killTimer);
           clearInterval(heartbeatTimer);
           cleanupTempFile(mcpConfigPath);
-          reject(err);
+          reject(toAgentProviderError('claude-cli', err, {
+            userMessage: 'Claude Code CLI could not start. Trying the next configured provider.',
+          }));
         });
       });
 

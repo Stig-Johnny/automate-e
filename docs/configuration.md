@@ -246,6 +246,8 @@ LLM provider configuration.
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `provider` | string | `"anthropic"` | LLM provider: `"anthropic"`, `"claude-cli"`, or `"codex-cli"` |
+| `fallbackProviders` | string[] | `[]` | Ordered fallback providers to try if the primary provider fails |
+| `providers` | object | `{}` | Provider-specific overrides keyed by provider name |
 | `model` | string | `"claude-haiku-4-5-20251001"` | Model identifier passed to the selected provider |
 | `temperature` | number | `0.3` | Response randomness (0.0 = deterministic, 1.0 = creative) |
 | `maxTokens` | number | `4096` | Maximum tokens per Anthropic SDK response. |
@@ -260,6 +262,29 @@ Notes:
 - `codex-cli` uses the local `codex` command.
 - `llm.authMode: device-auth` tells the runtime to require `codex login --device-auth` and surface the login URL/code through progress messages before running a turn.
 - Without `llm.authMode: device-auth`, `codex-cli` uses the existing environment, which can be either a stored Codex login or `OPENAI_API_KEY`.
+- `fallbackProviders` lets one agent try multiple providers in order. This is useful when you want Codex and Claude Code available at the same time with automatic failover.
+- `providers.{name}` can override provider-specific settings such as `model`, `timeoutMs`, `maxTurns`, or `authMode` without duplicating the entire `llm` block.
+
+Example with Codex primary and Claude Code fallback:
+
+```json
+{
+  "llm": {
+    "provider": "codex-cli",
+    "fallbackProviders": ["claude-cli"],
+    "providers": {
+      "codex-cli": {
+        "model": "gpt-5.4",
+        "authMode": "device-auth"
+      },
+      "claude-cli": {
+        "model": "claude-sonnet-4-5",
+        "maxTurns": 10
+      }
+    }
+  }
+}
+```
 
 ## `cron`
 

@@ -53,6 +53,15 @@ character:
     authMode: device-auth
     model: gpt-5.4
     temperature: 0.7
+    fallbackProviders:
+      - claude-cli
+    providers:
+      codex-cli:
+        model: gpt-5.4
+        authMode: device-auth
+      claude-cli:
+        model: claude-sonnet-4-5
+        maxTurns: 10
 
 dashboard:
   enabled: true

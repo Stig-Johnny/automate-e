@@ -69,6 +69,10 @@ export function loadCharacter() {
   character.memory = character.memory || { conversationRetention: '30d' };
   character.llm.provider = character.llm.provider || 'anthropic';
   character.llm.temperature = character.llm.temperature ?? 0.3;
+  character.llm.fallbackProviders = Array.isArray(character.llm.fallbackProviders)
+    ? character.llm.fallbackProviders
+    : [];
+  character.llm.providers = character.llm.providers || {};
   if (character.discord) {
     character.discord.allowBots = character.discord.allowBots || [];
   }
