@@ -97,13 +97,25 @@ test('buildCodexCliArgs includes cwd, output path, and prompt', () => {
     '--json',
     '--skip-git-repo-check',
     '--color', 'never',
-    '--full-auto',
     '-o', '/tmp/result.txt',
+    '--full-auto',
     '--model', 'gpt-5.4',
     '-C', '/tmp/workdir',
     '--search',
     'Reply with ok',
   ]);
+});
+
+test('buildCodexCliArgs drops --full-auto when dangerous bypass is enabled', () => {
+  const args = buildCodexCliArgs({
+    prompt: 'Reply with ok',
+    model: 'gpt-5.4',
+    outputPath: '/tmp/result.txt',
+    dangerouslyBypassApprovalsAndSandbox: true,
+  });
+
+  assert.equal(args.includes('--full-auto'), false);
+  assert.equal(args.includes('--dangerously-bypass-approvals-and-sandbox'), true);
 });
 
 test('parseDeviceAuthInfo extracts url and code from codex device auth output', () => {

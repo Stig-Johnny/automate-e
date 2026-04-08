@@ -128,9 +128,12 @@ export function buildCodexCliArgs({
     '--json',
     '--skip-git-repo-check',
     '--color', 'never',
-    '--full-auto',
     '-o', outputPath,
   ];
+
+  if (!dangerouslyBypassApprovalsAndSandbox) {
+    args.push('--full-auto');
+  }
 
   if (model) {
     args.push('--model', model);
