@@ -245,10 +245,19 @@ LLM provider configuration.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `"anthropic"` | LLM provider (currently only `"anthropic"`) |
-| `model` | string | `"claude-haiku-4-5-20251001"` | Model identifier |
+| `provider` | string | `"anthropic"` | LLM provider: `"anthropic"`, `"claude-cli"`, or `"codex-cli"` |
+| `model` | string | `"claude-haiku-4-5-20251001"` | Model identifier passed to the selected provider |
 | `temperature` | number | `0.3` | Response randomness (0.0 = deterministic, 1.0 = creative) |
-| `maxTokens` | number | `4096` | Maximum tokens per Claude response. Increase for agents that make many tool calls per turn. |
+| `maxTokens` | number | `4096` | Maximum tokens per Anthropic SDK response. |
+| `maxTurns` | number | `10` | Maximum turns for CLI providers (`claude-cli`, `codex-cli`). |
+| `timeoutMs` | number | `300000` | CLI timeout in milliseconds for CLI providers. |
+| `search` | boolean | `false` | Enables Codex web search when `provider` is `codex-cli`. |
+
+Notes:
+
+- `anthropic` uses the Anthropic SDK and `ANTHROPIC_API_KEY`.
+- `claude-cli` uses the local `claude` command. OAuth subscription tokens (`sk-ant-oat...`) automatically route to this mode.
+- `codex-cli` uses the local `codex` command and expects the runtime host to already be logged in via `codex login`.
 
 ## `cron`
 

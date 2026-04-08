@@ -3,7 +3,9 @@ name: Build & Push
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/**
     paths:
       - 'src/**'
       - 'package.json'
@@ -22,13 +24,35 @@ jobs:
       contents: read
       packages: write
     outputs:
-      image-tag: ${{ steps.meta.outputs.sha }}
+      image-tag: ${{ steps.meta.outputs.primary_tag }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set image tag
+      - name: Set image tags
         id: meta
-        run: echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          short_sha="${GITHUB_SHA::12}"
+          safe_ref="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr '/_' '--' | tr -cd 'a-z0-9.-')"
+
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            primary_tag="${short_sha}"
+            {
+              echo "primary_tag=${primary_tag}"
+              echo 'tags<<EOF'
+              echo "${IMAGE}:latest"
+              echo "${IMAGE}:${primary_tag}"
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          else
+            primary_tag="${safe_ref}-${short_sha}"
+            {
+              echo "primary_tag=${primary_tag}"
+              echo 'tags<<EOF'
+              echo "${IMAGE}:${primary_tag}"
+              echo 'EOF'
+            } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -42,7 +66,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}
-
+          tags: ${{ steps.meta.outputs.tags }}

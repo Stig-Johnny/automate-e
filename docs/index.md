@@ -4,7 +4,7 @@ title: Automate-E Runtime
 
 # Automate-E Runtime
 
-Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `character.json` config file into a running Discord bot backed by Claude, with persistent memory, tool calling, and cost tracking.
+Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `character.json` config file into a running Discord bot backed by configurable LLM providers, with persistent memory, tool calling, and cost tracking.
 
 - **Repository:** [Stig-Johnny/automate-e](https://github.com/Stig-Johnny/automate-e) (public, MIT license)
 - **Documentation:** [stig-johnny.github.io/automate-e](https://stig-johnny.github.io/automate-e/)
@@ -15,7 +15,7 @@ Automate-E is a Kubernetes-native AI agent runtime for Discord. It turns a `char
 | Feature | Description |
 |---------|-------------|
 | **Character-driven** | Define personality, tools, and behavior in a single JSON file |
-| **Claude-powered** | Agent loop uses Anthropic Claude API with tool use |
+| **Provider-flexible** | Agent loop can run via Anthropic SDK, Claude Code CLI, or Codex CLI |
 | **Postgres memory** | Conversations, user facts, and merchant patterns persist across restarts |
 | **In-memory fallback** | Works without Postgres for local development |
 | **Tool calling** | Agents call HTTP APIs defined in `character.json` |

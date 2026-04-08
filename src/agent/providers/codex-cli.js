@@ -1,0 +1,136 @@
+import { spawn } from 'child_process';
+import { readFileSync, existsSync, unlinkSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { reportTokenUsage } from '../../conductor.js';
+import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
+
+export function createCodexCliAgent(character, memory) {
+  console.log('[Automate-E] Using Codex CLI for LLM');
+  const systemPrompt = buildSystemPrompt(character);
+
+  return {
+    async process(message, context, dashboard, onProgress) {
+      const history = await memory.getConversation(context.threadId, 20);
+      const facts = await memory.getFacts(context.userId);
+      const system = buildSystemWithFacts(systemPrompt, facts);
+      const fullPrompt = buildCliPrompt(system, history, message, context);
+      const cwd = character.workDir || undefined;
+      const outputPath = join(tmpdir(), `automate-e-codex-${Date.now()}.txt`);
+
+      const args = buildCodexCliArgs({
+        prompt: fullPrompt,
+        model: character.llm.model,
+        cwd,
+        outputPath,
+        search: character.llm?.search === true,
+      });
+
+      if (cwd) console.log(`[Automate-E] Codex CLI cwd: ${cwd}`);
+      console.log(`[Automate-E] Codex CLI call: model=${character.llm.model}`);
+
+      const reply = await new Promise((resolve, reject) => {
+        const proc = spawn('codex', args, { env: process.env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        const timeoutMs = character.llm?.timeoutMs ?? 300_000;
+        let stdout = '';
+        let stderr = '';
+        const startTime = Date.now();
+
+        const killTimer = setTimeout(() => {
+          proc.kill('SIGTERM');
+          reject(new Error('Codex CLI timeout'));
+        }, timeoutMs);
+
+        const heartbeatTimer = setInterval(() => {
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
+          const msg = `⏳ Still working... (${elapsed}s)`;
+          console.log(`[Automate-E] ${msg}`);
+          if (onProgress) onProgress(msg);
+        }, 60_000);
+
+        proc.stdout.on('data', chunk => { stdout += chunk.toString(); });
+        proc.stderr.on('data', chunk => { stderr += chunk.toString(); });
+
+        proc.on('close', code => {
+          clearTimeout(killTimer);
+          clearInterval(heartbeatTimer);
+
+          const resultText = readCodexReply(outputPath);
+          cleanupTempFile(outputPath);
+
+          if (resultText) {
+            console.log(`[Automate-E] Codex CLI complete: exit=${code ?? 0}`);
+            reportTokenUsage({ model: character.llm.model, inputTokens: 0, outputTokens: 0, costUsd: 0 });
+            if (dashboard) dashboard.addLog('info', 'Codex CLI: completed');
+            resolve(resultText);
+            return;
+          }
+
+          if (code !== 0) {
+            const stderrSummary = stderr.trim().split('\n').slice(-3).join(' | ');
+            console.log(`[Automate-E] Codex CLI exited ${code}${stderrSummary ? `: ${stderrSummary}` : ''}`);
+            resolve(`Codex CLI error (exit ${code})`);
+            return;
+          }
+
+          const stdoutSummary = stdout.trim().split('\n').slice(-3).join(' | ');
+          if (stdoutSummary) {
+            console.log(`[Automate-E] Codex CLI produced no final message: ${stdoutSummary}`);
+          }
+          resolve('Done.');
+        });
+
+        proc.on('error', err => {
+          clearTimeout(killTimer);
+          clearInterval(heartbeatTimer);
+          cleanupTempFile(outputPath);
+          reject(err);
+        });
+      });
+
+      await memory.saveMessage(context.threadId, 'user', message, context.userId);
+      await memory.saveMessage(context.threadId, 'assistant', reply);
+      return reply;
+    },
+  };
+}
+
+export function buildCodexCliArgs({ prompt, model, cwd, outputPath, search = false }) {
+  const args = [
+    'exec',
+    '--json',
+    '--skip-git-repo-check',
+    '--color', 'never',
+    '--full-auto',
+    '-o', outputPath,
+  ];
+
+  if (model) {
+    args.push('--model', model);
+  }
+  if (cwd) {
+    args.push('-C', cwd);
+  }
+  if (search) {
+    args.push('--search');
+  }
+
+  args.push(prompt);
+  return args;
+}
+
+function readCodexReply(outputPath) {
+  if (!existsSync(outputPath)) return '';
+
+  try {
+    return readFileSync(outputPath, 'utf-8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function cleanupTempFile(path) {
+  try {
+    unlinkSync(path);
+  } catch {}
+}

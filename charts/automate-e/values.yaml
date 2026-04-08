@@ -38,6 +38,7 @@ secrets:
   existingSecret: ""
   discordBotToken: ""
   anthropicApiKey: ""
+  openaiApiKey: ""
   databaseUrl: ""
 
 # Cron: deploy an additional CronJob that runs the agent prompt on schedule.

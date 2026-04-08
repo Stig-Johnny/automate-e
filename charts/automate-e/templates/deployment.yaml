@@ -52,6 +52,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: anthropic-api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: openai-api-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -172,6 +178,12 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: anthropic-api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: openai-api-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -232,6 +244,12 @@ spec:
                     secretKeyRef:
                       name: {{ include "automate-e.secretName" . }}
                       key: anthropic-api-key
+                - name: OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: openai-api-key
+                      optional: true
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:

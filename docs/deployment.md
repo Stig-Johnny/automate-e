@@ -99,11 +99,12 @@ kubectl create namespace automate-e
 Create secrets manually before deploying. The chart references them via `secrets.existingSecret`:
 
 ```bash
-# Agent secrets (Discord token + Anthropic key + optional DB URL)
+# Agent secrets (Discord token + Anthropic/OpenAI key + optional DB URL)
 kubectl create secret generic my-agent-secrets \
   -n automate-e \
   --from-literal=discord-bot-token=<token> \
   --from-literal=anthropic-api-key=<key> \
+  --from-literal=openai-api-key=<key> \
   --from-literal=database-url=<url>
 
 # GHCR pull secret (for private images)
@@ -120,6 +121,11 @@ kubectl create secret generic cloudflared-automate-e-token \
 ```
 
 Do not use SealedSecrets. Secrets are created manually and referenced by name.
+
+For `llm.provider: codex-cli`, there are two auth patterns:
+
+- Persistent host: run `codex login` on the machine and preserve the Codex auth directory.
+- Kubernetes/ephemeral pod: prefer `OPENAI_API_KEY` because interactive ChatGPT login is brittle across pod restarts.
 
 ## ArgoCD
 
@@ -197,6 +203,7 @@ kubectl create secret generic my-agent-secrets \
   -n my-namespace \
   --from-literal=discord-bot-token=<token> \
   --from-literal=anthropic-api-key=<key> \
+  --from-literal=openai-api-key=<key> \
   --from-literal=discord-webhook-url=<webhook-url> \
   --from-literal=github-token=<pat>
 ```

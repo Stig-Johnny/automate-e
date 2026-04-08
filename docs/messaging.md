@@ -125,7 +125,8 @@ messagingPlatform: discord  # or omit (default)
 
 secrets:
   existingSecret: my-agent-secrets
-  # Secret must contain: discord-bot-token, anthropic-api-key
+  # Secret must contain: discord-bot-token plus the provider credential you use
+  # (anthropic-api-key for Anthropic / Claude CLI, openai-api-key for Codex CLI with API key auth)
 ```
 
 ### Slack Agent
@@ -136,7 +137,7 @@ command: ["node", "src/index-v2.js"]
 
 secrets:
   existingSecret: my-agent-secrets
-  # Secret must contain: slack-bot-token, slack-app-token, anthropic-api-key
+  # Secret must contain: slack-bot-token, slack-app-token, and the provider credential you use
 ```
 
 ### Kubernetes Secret
@@ -146,6 +147,7 @@ kubectl create secret generic my-agent-secrets \
   --from-literal=slack-bot-token='xoxb-...' \
   --from-literal=slack-app-token='xapp-...' \
   --from-literal=anthropic-api-key='sk-ant-...' \
+  --from-literal=openai-api-key='sk-...' \
   --from-literal=database-url=''
 ```
 
