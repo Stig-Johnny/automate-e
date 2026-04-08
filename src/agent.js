@@ -33,8 +33,10 @@ export function createAgent(character, memory, mcpClients) {
           failures.push(providerError);
 
           const fallbackAllowed = providerError.fallbackEligible !== false;
-          console.error(`[Automate-E] Provider ${entry.provider} failed: ${providerError.message}`);
-          if (dashboard) dashboard.addLog('error', `${entry.provider}: ${providerError.message}`);
+          const failureNotice = buildProviderFailureNotice(entry.provider, providerError, fallbackAllowed, isLast);
+          console.error(`[Automate-E] ${failureNotice}`);
+          if (dashboard) dashboard.addLog('error', failureNotice);
+          if (onProgress) await onProgress(failureNotice);
 
           if (!fallbackAllowed || isLast) {
             const finalError = new Error(providerError.message);
@@ -69,4 +71,13 @@ function buildFallbackFailureMessage(failures) {
 
   const providers = failures.map(f => f.provider).join(', ');
   return `All configured LLM providers failed (${providers}). Please try again.`;
+}
+
+function buildProviderFailureNotice(provider, providerError, fallbackAllowed, isLast) {
+  const detail = providerError.userMessage || providerError.message;
+  const nextStep = (!fallbackAllowed || isLast)
+    ? 'No fallback providers remain.'
+    : 'Trying the next configured provider.';
+
+  return `Provider ${provider} failed: ${detail} ${nextStep}`.trim();
 }
