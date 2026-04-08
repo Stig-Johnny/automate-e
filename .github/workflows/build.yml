@@ -50,6 +50,7 @@ jobs:
               echo "primary_tag=${primary_tag}"
               echo 'tags<<EOF'
               echo "${IMAGE}:${primary_tag}"
+              echo "${IMAGE}:${short_sha}"
               echo 'EOF'
             } >> "$GITHUB_OUTPUT"
           fi
