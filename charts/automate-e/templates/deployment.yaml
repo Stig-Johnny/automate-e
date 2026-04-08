@@ -63,6 +63,10 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: database-url
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: CODEX_HOME
+              value: {{ .Values.codexHomePersistence.mountPath | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -129,6 +133,10 @@ spec:
                   key: discord-bot-token
             - name: REDIS_URL
               value: {{ .Values.redis.url | quote }}
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: CODEX_HOME
+              value: {{ .Values.codexHomePersistence.mountPath | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -202,13 +210,17 @@ spec:
                   name: {{ include "automate-e.secretName" . }}
                   key: openai-api-key
                   optional: true
-            - name: DATABASE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "automate-e.secretName" . }}
-                  key: database-url
-            - name: REDIS_URL
-              value: {{ .Values.redis.url | quote }}
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: database-url
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: CODEX_HOME
+                  value: {{ .Values.codexHomePersistence.mountPath | quote }}
+                {{- end }}
+                - name: REDIS_URL
+                  value: {{ .Values.redis.url | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -283,6 +295,10 @@ spec:
                       name: {{ include "automate-e.secretName" . }}
                       key: database-url
                       optional: true
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: CODEX_HOME
+                  value: {{ .Values.codexHomePersistence.mountPath | quote }}
+                {{- end }}
                 - name: DISCORD_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:

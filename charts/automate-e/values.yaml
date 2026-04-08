@@ -46,7 +46,7 @@ codexHomePersistence:
   existingClaim: ""
   size: 1Gi
   storageClass: ""
-  mountPath: /home/claude/.codex
+  mountPath: /home/node/.codex
 
 # Cron: deploy an additional CronJob that runs the agent prompt on schedule.
 # Works with any mode — the CronJob shares the same character, secrets, and database.
