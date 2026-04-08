@@ -39,6 +39,18 @@ const dashboard = {
   updateUsage() {},
 };
 
+let lastProgressMessage = '';
+const onProgress = async (message) => {
+  if (!message?.trim()) return;
+  if (message === lastProgressMessage) return;
+  lastProgressMessage = message;
+
+  console.log(`[Automate-E] Progress:\n${message}`);
+
+  if (!webhookUrl) return;
+  await postToDiscordWebhook(character.name, message);
+};
+
 try {
   const response = await agent.process(character.cron.prompt, {
     userId: 'cron',
@@ -46,31 +58,13 @@ try {
     channelId: 'cron',
     threadId: 'cron',
     attachments: [],
-  }, dashboard);
+  }, dashboard, onProgress);
 
   console.log(`[Automate-E] Response:\n${response}`);
 
   // Post to Discord webhook if configured
   if (webhookUrl && response.trim()) {
-    // Split into 2000-char chunks (Discord limit)
-    const chunks = [];
-    for (let i = 0; i < response.length; i += 2000) {
-      chunks.push(response.slice(i, i + 2000));
-    }
-
-    for (const chunk of chunks) {
-      const res = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: character.name,
-          content: chunk,
-        }),
-      });
-      if (!res.ok) {
-        console.error(`[Automate-E] Discord webhook failed: ${res.status} ${await res.text()}`);
-      }
-    }
+    await postToDiscordWebhook(character.name, response);
     console.log(`[Automate-E] Posted to Discord webhook`);
   }
 
@@ -81,4 +75,27 @@ try {
 } finally {
   await mcpClients.close();
   await memory.close?.();
+}
+
+async function postToDiscordWebhook(username, content) {
+  if (!webhookUrl || !content?.trim()) return;
+
+  const chunks = [];
+  for (let i = 0; i < content.length; i += 2000) {
+    chunks.push(content.slice(i, i + 2000));
+  }
+
+  for (const chunk of chunks) {
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username,
+        content: chunk,
+      }),
+    });
+    if (!res.ok) {
+      console.error(`[Automate-E] Discord webhook failed: ${res.status} ${await res.text()}`);
+    }
+  }
 }
