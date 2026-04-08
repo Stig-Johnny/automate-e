@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { reportTokenUsage } from '../../conductor.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
+import { buildCodexEnv, ensureCodexAuth } from './codex-auth.js';
 
 export function createCodexCliAgent(character, memory) {
   console.log('[Automate-E] Using Codex CLI for LLM');
@@ -11,6 +12,8 @@ export function createCodexCliAgent(character, memory) {
 
   return {
     async process(message, context, dashboard, onProgress) {
+      await ensureCodexAuth(character, onProgress);
+
       const history = await memory.getConversation(context.threadId, 20);
       const facts = await memory.getFacts(context.userId);
       const system = buildSystemWithFacts(systemPrompt, facts);
@@ -30,7 +33,7 @@ export function createCodexCliAgent(character, memory) {
       console.log(`[Automate-E] Codex CLI call: model=${character.llm.model}`);
 
       const reply = await new Promise((resolve, reject) => {
-        const proc = spawn('codex', args, { env: process.env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+        const proc = spawn('codex', args, { env: buildCodexEnv(character), cwd, stdio: ['ignore', 'pipe', 'pipe'] });
         const timeoutMs = character.llm?.timeoutMs ?? 300_000;
         let stdout = '';
         let stderr = '';

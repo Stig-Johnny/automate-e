@@ -125,6 +125,7 @@ Do not use SealedSecrets. Secrets are created manually and referenced by name.
 For `llm.provider: codex-cli`, there are two auth patterns:
 
 - Persistent host: run `codex login` on the machine and preserve the Codex auth directory.
+- If you set `llm.authMode: device-auth`, the runtime can trigger `codex login --device-auth`, post the browser URL/code through progress updates, and wait for a human to complete login.
 - Kubernetes/ephemeral pod: prefer `OPENAI_API_KEY` because interactive ChatGPT login is brittle across pod restarts.
 
 ## ArgoCD

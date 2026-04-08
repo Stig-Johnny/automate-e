@@ -186,6 +186,9 @@ client.on('messageCreate', async (message) => {
     if (isDM) {
       await message.channel.sendTyping();
       dashboard.updateSession(`dm-${message.author.id}`, { user: message.author.username, type: 'dm' });
+      const progress = async (text) => {
+        await message.channel.send(text.slice(0, 2000));
+      };
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -195,7 +198,7 @@ client.on('messageCreate', async (message) => {
         attachments: [...message.attachments.values()].map(a => ({
           name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      }, dashboard);
+      }, dashboard, progress);
 
       await message.reply(response);
     } else {
@@ -220,6 +223,9 @@ client.on('messageCreate', async (message) => {
 
       await thread.sendTyping();
       dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
+      const progress = async (text) => {
+        await thread.send(text.slice(0, 2000));
+      };
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -229,7 +235,7 @@ client.on('messageCreate', async (message) => {
         attachments: [...message.attachments.values()].map(a => ({
           name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      }, dashboard);
+      }, dashboard, progress);
 
       await thread.send(response);
     }

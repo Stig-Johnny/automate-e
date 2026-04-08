@@ -257,7 +257,9 @@ Notes:
 
 - `anthropic` uses the Anthropic SDK and `ANTHROPIC_API_KEY`.
 - `claude-cli` uses the local `claude` command. OAuth subscription tokens (`sk-ant-oat...`) automatically route to this mode.
-- `codex-cli` uses the local `codex` command and expects the runtime host to already be logged in via `codex login`.
+- `codex-cli` uses the local `codex` command.
+- `llm.authMode: device-auth` tells the runtime to require `codex login --device-auth` and surface the login URL/code through progress messages before running a turn.
+- Without `llm.authMode: device-auth`, `codex-cli` uses the existing environment, which can be either a stored Codex login or `OPENAI_API_KEY`.
 
 ## `cron`
 

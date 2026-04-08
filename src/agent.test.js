@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveAgentProvider } from './agent/provider-mode.js';
 import { buildCodexCliArgs } from './agent/providers/codex-cli.js';
+import { buildCodexEnv, parseDeviceAuthInfo } from './agent/providers/codex-auth.js';
 
 test('resolveAgentProvider defaults to anthropic', () => {
   delete process.env.CODEX_CLI_MODE;
@@ -53,4 +54,18 @@ test('buildCodexCliArgs includes cwd, output path, and prompt', () => {
     '--search',
     'Reply with ok',
   ]);
+});
+
+test('parseDeviceAuthInfo extracts url and code from codex device auth output', () => {
+  const info = parseDeviceAuthInfo('Open https://auth.openai.com/device and enter code ABCD-EFGH to continue.');
+  assert.equal(info.url, 'https://auth.openai.com/device');
+  assert.equal(info.code, 'ABCD-EFGH');
+});
+
+test('buildCodexEnv removes OPENAI_API_KEY for device-auth mode', () => {
+  process.env.OPENAI_API_KEY = 'sk-test';
+  const env = buildCodexEnv({ llm: { authMode: 'device-auth' } });
+  assert.equal(env.OPENAI_API_KEY, undefined);
+  assert.equal(process.env.OPENAI_API_KEY, 'sk-test');
+  delete process.env.OPENAI_API_KEY;
 });
