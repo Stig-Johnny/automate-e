@@ -62,6 +62,20 @@ test('parseDeviceAuthInfo extracts url and code from codex device auth output', 
   assert.equal(info.code, 'ABCD-EFGH');
 });
 
+test('parseDeviceAuthInfo strips ansi formatting from codex device auth output', () => {
+  const output = [
+    'Welcome to Codex [v\x1b[90m0.118.0\x1b[0m]',
+    '1. Open this link in your browser and sign in to your account',
+    '   \x1b[94mhttps://auth.openai.com/codex/device\x1b[0m',
+    '2. Enter this one-time code \x1b[90m(expires in 15 minutes)\x1b[0m',
+    '   \x1b[94m69PF-27ZKW\x1b[0m',
+  ].join('\n');
+
+  const info = parseDeviceAuthInfo(output);
+  assert.equal(info.url, 'https://auth.openai.com/codex/device');
+  assert.equal(info.code, '69PF-27ZKW');
+});
+
 test('buildCodexEnv removes OPENAI_API_KEY for device-auth mode', () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   const env = buildCodexEnv({ llm: { authMode: 'device-auth' } });

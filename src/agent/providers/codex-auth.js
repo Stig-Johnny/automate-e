@@ -34,15 +34,21 @@ export function buildCodexEnv(character) {
 }
 
 export function parseDeviceAuthInfo(output) {
-  const urlMatch = output.match(/https?:\/\/\S+/);
-  const codeMatch = output.match(/(?:code|verification code|enter code)[^A-Z0-9-]*([A-Z0-9-]{4,})/i);
+  const clean = stripAnsi(output);
+  const urlMatch = clean.match(/https?:\/\/\S+/);
+  const codeMatch = [
+    clean.match(/one-time code[^\n]*\n\s*([A-Z0-9-]{4,})/i),
+    clean.match(/(?:one-time code|verification code|enter(?: this)? code)[^A-Z0-9\n]*([A-Z0-9-]{4,})/i),
+    clean.match(/(?:verification code|enter(?: this)? code)[^\n]*\n?\s*([A-Z0-9-]{4,})/i),
+    clean.match(/\b([A-Z0-9]{4,}(?:-[A-Z0-9]{2,})+)\b/),
+  ].find(Boolean);
 
-  if (!urlMatch && !codeMatch && !output.trim()) return null;
+  if (!urlMatch && !codeMatch && !clean.trim()) return null;
 
   return {
     url: urlMatch?.[0] || null,
     code: codeMatch?.[1] || null,
-    raw: output.trim(),
+    raw: clean.trim(),
   };
 }
 
@@ -127,4 +133,8 @@ async function runCodex(args) {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function stripAnsi(text) {
+  return text.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
 }
