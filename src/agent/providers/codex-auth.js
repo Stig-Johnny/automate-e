@@ -109,6 +109,7 @@ async function runDeviceAuthFlow(onProgress) {
     if (announced || !onProgress) return;
     const info = parseDeviceAuthInfo(combined);
     if (!info) return;
+    if (!info.url && !info.code) return;
 
     announced = true;
     const lines = ['Codex login required.'];

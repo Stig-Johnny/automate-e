@@ -83,6 +83,12 @@ test('parseDeviceAuthInfo strips ansi formatting from codex device auth output',
   assert.equal(info.code, '69PF-27ZKW');
 });
 
+test('parseDeviceAuthInfo ignores warning-only output without device auth details', () => {
+  const info = parseDeviceAuthInfo('WARNING: failed to clean up stale arg0 temp dirs: Directory not empty (os error 39)');
+  assert.equal(info.url, null);
+  assert.equal(info.code, null);
+});
+
 test('buildCodexEnv removes OPENAI_API_KEY for device-auth mode', () => {
   process.env.OPENAI_API_KEY = 'sk-test';
   const env = buildCodexEnv({ llm: { authMode: 'device-auth' } });
