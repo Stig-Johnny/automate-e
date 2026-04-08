@@ -5,6 +5,14 @@ const DEVICE_AUTH_POLL_MS = 5000;
 
 let activeDeviceAuth = null;
 
+export class CodexAuthError extends Error {
+  constructor(message, userMessage) {
+    super(message);
+    this.name = 'CodexAuthError';
+    this.userMessage = userMessage;
+  }
+}
+
 export async function ensureCodexAuth(character, onProgress) {
   const authMode = character.llm?.authMode || 'auto';
   const needsDeviceAuth = authMode === 'device-auth' || process.env.CODEX_DEVICE_AUTH === 'true';
@@ -97,7 +105,17 @@ async function runDeviceAuthFlow(onProgress) {
     }
 
     if (proc.exitCode !== null && proc.exitCode !== 0) {
-      throw new Error(`Codex device auth exited ${proc.exitCode}: ${combined.trim() || 'no output'}`);
+      const details = combined.trim() || 'no output';
+      if (/429|too many requests/i.test(details)) {
+        throw new CodexAuthError(
+          `Codex device auth exited ${proc.exitCode}: ${details}`,
+          'Codex login is temporarily rate-limited. Wait a few minutes, then try again so I can send a fresh login link and code.',
+        );
+      }
+      throw new CodexAuthError(
+        `Codex device auth exited ${proc.exitCode}: ${details}`,
+        'Codex login failed before completion. Try again and I will send a fresh login link and code.',
+      );
     }
 
     await sleep(DEVICE_AUTH_POLL_MS);
@@ -106,7 +124,10 @@ async function runDeviceAuthFlow(onProgress) {
   try {
     proc.kill('SIGTERM');
   } catch {}
-  throw new Error('Codex device auth timed out before login completed.');
+  throw new CodexAuthError(
+    'Codex device auth timed out before login completed.',
+    'Codex login timed out before completion. Ask again and I will send a fresh login link and code.',
+  );
 }
 
 async function isCodexLoggedIn() {
