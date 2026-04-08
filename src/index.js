@@ -7,6 +7,7 @@ import { connectMcpServers } from './mcp.js';
 import { createWebhookHandler } from './webhook.js';
 import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
+import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
 
 const character = loadCharacter();
 startTokenRefresh();
@@ -184,6 +185,8 @@ client.on('messageCreate', async (message) => {
 
   try {
     if (isDM) {
+      const controlReply = await handleControlCommand(message, message.channel);
+      if (controlReply) return;
       await message.channel.sendTyping();
       dashboard.updateSession(`dm-${message.author.id}`, { user: message.author.username, type: 'dm' });
       const progress = async (text) => {
@@ -221,6 +224,8 @@ client.on('messageCreate', async (message) => {
         }
       }
 
+      const controlReply = await handleControlCommand(message, thread);
+      if (controlReply) return;
       await thread.sendTyping();
       dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
       const progress = async (text) => {
@@ -252,3 +257,42 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
+
+async function handleControlCommand(message, replyChannel) {
+  const command = normalizeControlCommand(message.content);
+  if (!command) return false;
+
+  if (command === 'abort-login') {
+    const aborted = abortDeviceAuthFlow();
+    await replyChannel.send(
+      aborted
+        ? 'Codex login flow aborted. Send `/retry-login` or another message when you want a fresh login link and code.'
+        : 'No Codex login flow is currently running.',
+    );
+    return true;
+  }
+
+  if (command === 'retry-login') {
+    const aborted = abortDeviceAuthFlow();
+    resetDeviceAuthCooldown();
+    await replyChannel.send(
+      aborted
+        ? 'Codex login flow reset. Send your next message now and I will start a fresh login flow.'
+        : 'Codex login cooldown cleared. Send your next message now and I will start a fresh login flow.',
+    );
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeControlCommand(content) {
+  const normalized = content.trim().toLowerCase();
+  if (['/abort-login', 'abort login', 'cancel login'].includes(normalized)) {
+    return 'abort-login';
+  }
+  if (['/retry-login', 'retry login', 'reset login'].includes(normalized)) {
+    return 'retry-login';
+  }
+  return null;
+}

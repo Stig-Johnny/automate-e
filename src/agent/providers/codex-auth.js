@@ -5,6 +5,7 @@ const DEVICE_AUTH_POLL_MS = 5000;
 const DEVICE_AUTH_RETRY_MS = 5 * 60 * 1000;
 
 let activeDeviceAuth = null;
+let activeDeviceAuthProcess = null;
 let nextDeviceAuthAllowedAt = 0;
 
 export class CodexAuthError extends Error {
@@ -60,6 +61,19 @@ export function startDeviceAuthCooldownForTest(retryAfterMs, now = Date.now()) {
   startDeviceAuthCooldown(retryAfterMs, now);
 }
 
+export function abortDeviceAuthFlow() {
+  let aborted = false;
+  if (activeDeviceAuthProcess) {
+    try {
+      activeDeviceAuthProcess.kill('SIGTERM');
+      aborted = true;
+    } catch {}
+    activeDeviceAuthProcess = null;
+  }
+  activeDeviceAuth = null;
+  return aborted;
+}
+
 export function parseDeviceAuthInfo(output) {
   const clean = stripAnsi(output);
   const urlMatch = clean.match(/https?:\/\/\S+/);
@@ -84,6 +98,7 @@ async function runDeviceAuthFlow(onProgress) {
     env: process.env,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+  activeDeviceAuthProcess = proc;
 
   let combined = '';
   let announced = false;
@@ -110,6 +125,16 @@ async function runDeviceAuthFlow(onProgress) {
     combined += chunk.toString();
     void maybeAnnounce();
   });
+  proc.on('close', () => {
+    if (activeDeviceAuthProcess === proc) {
+      activeDeviceAuthProcess = null;
+    }
+  });
+  proc.on('error', () => {
+    if (activeDeviceAuthProcess === proc) {
+      activeDeviceAuthProcess = null;
+    }
+  });
 
   const start = Date.now();
   while (Date.now() - start < DEVICE_AUTH_TIMEOUT_MS) {
@@ -117,6 +142,7 @@ async function runDeviceAuthFlow(onProgress) {
       try {
         proc.kill('SIGTERM');
       } catch {}
+      activeDeviceAuthProcess = null;
       if (onProgress) {
         await onProgress('Codex login complete. Continuing...');
       }
@@ -145,6 +171,7 @@ async function runDeviceAuthFlow(onProgress) {
   try {
     proc.kill('SIGTERM');
   } catch {}
+  activeDeviceAuthProcess = null;
   throw new CodexAuthError(
     'Codex device auth timed out before login completed.',
     'Codex login timed out before completion. Ask again and I will send a fresh login link and code.',
