@@ -34,6 +34,8 @@ export function createCodexCliAgent(character, memory) {
         cwd,
         outputPath,
         search: character.llm?.search === true,
+        mcpServers: character.llm?.passMcpToCli ? character.mcpServers : null,
+        dangerouslyBypassApprovalsAndSandbox: character.llm?.dangerouslyBypassApprovalsAndSandbox === true,
       });
 
       if (cwd) console.log(`[Automate-E] Codex CLI cwd: ${cwd}`);
@@ -112,7 +114,15 @@ export function createCodexCliAgent(character, memory) {
   };
 }
 
-export function buildCodexCliArgs({ prompt, model, cwd, outputPath, search = false }) {
+export function buildCodexCliArgs({
+  prompt,
+  model,
+  cwd,
+  outputPath,
+  search = false,
+  mcpServers = {},
+  dangerouslyBypassApprovalsAndSandbox = false,
+}) {
   const args = [
     'exec',
     '--json',
@@ -132,8 +142,44 @@ export function buildCodexCliArgs({ prompt, model, cwd, outputPath, search = fal
     args.push('--search');
   }
 
+  if (dangerouslyBypassApprovalsAndSandbox) {
+    args.push('--dangerously-bypass-approvals-and-sandbox');
+  }
+
+  for (const configArg of buildCodexMcpConfigArgs(mcpServers)) {
+    args.push('-c', configArg);
+  }
+
   args.push(prompt);
   return args;
+}
+
+function buildCodexMcpConfigArgs(mcpServers) {
+  const args = [];
+
+  for (const [serverName, config] of Object.entries(mcpServers)) {
+    if (!config?.command) continue;
+
+    args.push(`mcp_servers.${serverName}.command=${toTomlString(config.command)}`);
+    if (Array.isArray(config.args) && config.args.length > 0) {
+      args.push(`mcp_servers.${serverName}.args=${toTomlArray(config.args)}`);
+    }
+    if (config.env && typeof config.env === 'object') {
+      for (const [key, value] of Object.entries(config.env)) {
+        args.push(`mcp_servers.${serverName}.env.${key}=${toTomlString(String(value))}`);
+      }
+    }
+  }
+
+  return args;
+}
+
+function toTomlArray(values) {
+  return `[${values.map(value => toTomlString(String(value))).join(',')}]`;
+}
+
+function toTomlString(value) {
+  return JSON.stringify(String(value));
 }
 
 function readCodexReply(outputPath) {
