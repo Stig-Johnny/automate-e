@@ -70,19 +70,22 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
 
-      - name: Checkout cluster-gitops
-        if: ${{ github.ref_name == 'feature/codex-cli-provider-example-e' && secrets.CLUSTER_GITOPS_PAT != '' }}
-        uses: actions/checkout@v4
-        with:
-          repository: Stig-Johnny/cluster-gitops
-          ref: feature/example-e-codex-k8s-login
-          token: ${{ secrets.CLUSTER_GITOPS_PAT }}
-          path: cluster-gitops
-
       - name: Sync example-e gitops to exact SHA
-        if: ${{ github.ref_name == 'feature/codex-cli-provider-example-e' && secrets.CLUSTER_GITOPS_PAT != '' }}
+        if: ${{ github.ref_name == 'feature/codex-cli-provider-example-e' }}
         shell: bash
+        env:
+          CLUSTER_GITOPS_PAT: ${{ secrets.CLUSTER_GITOPS_PAT }}
         run: |
+          if [[ -z "${CLUSTER_GITOPS_PAT}" ]]; then
+            echo "CLUSTER_GITOPS_PAT is not configured; skipping gitops sync."
+            exit 0
+          fi
+
+          git clone "https://x-access-token:${CLUSTER_GITOPS_PAT}@github.com/Stig-Johnny/cluster-gitops.git" \
+            --branch feature/example-e-codex-k8s-login \
+            --depth 1 \
+            cluster-gitops
+
           file="cluster-gitops/apps/example-e-argocd.yaml"
           perl -0pi -e 's#targetRevision: .*?\n    path: charts/automate-e#targetRevision: '"${GITHUB_SHA}"'\n    path: charts/automate-e#' "$file"
           perl -0pi -e 's#(name: image\.tag\n\s+value: ).*#$1'"${{ steps.meta.outputs.short_sha }}"'#' "$file"
