@@ -70,6 +70,10 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           {{- if .Values.dashboard.enabled }}
           ports:
             - name: dashboard
@@ -81,6 +85,11 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 {{- else }}
 # Gateway+Worker mode: gateway handles Discord, workers process messages via Redis
 ---
@@ -127,6 +136,10 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           {{- if .Values.dashboard.enabled }}
           ports:
             - name: dashboard
@@ -138,6 +151,11 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -198,12 +216,21 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 {{- end }}
 ---
 {{- if .Values.cron.enabled }}
@@ -269,10 +296,19 @@ spec:
                 - name: character
                   mountPath: /config
                   readOnly: true
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: codex-home
+                  mountPath: {{ .Values.codexHomePersistence.mountPath }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
           volumes:
             - name: character
               configMap:
                 name: {{ include "automate-e.fullname" . }}-character
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              persistentVolumeClaim:
+                claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+            {{- end }}
 {{- end }}

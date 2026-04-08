@@ -11,6 +11,10 @@ imagePullSecrets:
 secrets:
   existingSecret: example-e-secrets
 
+codexHomePersistence:
+  enabled: true
+  size: 1Gi
+
 character:
   name: Example-E
   bio: "A friendly demo agent that shares quotes and fun facts"
