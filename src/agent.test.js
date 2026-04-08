@@ -2,7 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveAgentProvider } from './agent/provider-mode.js';
 import { buildCodexCliArgs } from './agent/providers/codex-cli.js';
-import { buildCodexEnv, parseDeviceAuthInfo } from './agent/providers/codex-auth.js';
+import {
+  buildCodexEnv,
+  ensureCodexAuth,
+  getDeviceAuthCooldownRemainingMs,
+  parseDeviceAuthInfo,
+  resetDeviceAuthCooldown,
+  startDeviceAuthCooldownForTest,
+} from './agent/providers/codex-auth.js';
 
 test('resolveAgentProvider defaults to anthropic', () => {
   delete process.env.CODEX_CLI_MODE;
@@ -82,4 +89,21 @@ test('buildCodexEnv removes OPENAI_API_KEY for device-auth mode', () => {
   assert.equal(env.OPENAI_API_KEY, undefined);
   assert.equal(process.env.OPENAI_API_KEY, 'sk-test');
   delete process.env.OPENAI_API_KEY;
+});
+
+test('ensureCodexAuth enforces existing device-auth cooldown', async () => {
+  resetDeviceAuthCooldown();
+  const now = Date.now();
+  startDeviceAuthCooldownForTest(60_000, now);
+
+  try {
+    assert.ok(getDeviceAuthCooldownRemainingMs(now) > 0);
+    await assert.rejects(ensureCodexAuth({ llm: { authMode: 'device-auth' } }), error => {
+      assert.match(error.message, /cooldown active/i);
+      assert.match(error.userMessage, /cooling down/i);
+      return true;
+    });
+  } finally {
+    resetDeviceAuthCooldown();
+  }
 });
