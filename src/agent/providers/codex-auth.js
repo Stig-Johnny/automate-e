@@ -184,7 +184,8 @@ async function runDeviceAuthFlow(onProgress) {
 
 async function isCodexLoggedIn() {
   const result = await runCodex(['login', 'status']);
-  return result.code === 0 && /logged in/i.test(result.stdout);
+  const combined = `${result.stdout}\n${result.stderr}`;
+  return result.code === 0 && /logged in/i.test(combined);
 }
 
 async function runCodex(args) {
