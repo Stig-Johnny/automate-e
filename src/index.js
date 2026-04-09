@@ -178,6 +178,7 @@ client.on('messageCreate', async (message) => {
 
   const allowedBots = character.discord?.allowBots || [];
   if (message.author.bot && !allowedBots.includes(message.author.id)) return;
+  if (message.author.bot && normalizeControlCommand(message.content)) return;
 
   const isDM = message.channel.type === ChannelType.DM;
 
