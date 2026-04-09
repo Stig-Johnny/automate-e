@@ -25,7 +25,7 @@ export function getActiveProvider(character) {
 }
 
 export function setActiveProvider(character, provider) {
-  const normalizedProvider = String(provider || '').trim();
+  const normalizedProvider = normalizeProviderSelection(character, provider);
   const configuredProviders = getConfiguredProviders(character);
   if (!configuredProviders.includes(normalizedProvider)) {
     throw new Error(`Unknown provider '${provider}'. Configured providers: ${configuredProviders.join(', ')}`);
@@ -52,4 +52,31 @@ function readPersistedProvider() {
 function writePersistedProvider(provider) {
   fs.mkdirSync(path.dirname(getProviderStateFilePath()), { recursive: true });
   fs.writeFileSync(getProviderStateFilePath(), `${provider}\n`);
+}
+
+function normalizeProviderSelection(character, provider) {
+  const rawProvider = String(provider || '').trim();
+  if (!rawProvider) return rawProvider;
+
+  const configuredProviders = getConfiguredProviders(character);
+  if (configuredProviders.includes(rawProvider)) {
+    return rawProvider;
+  }
+
+  const normalized = rawProvider.toLowerCase();
+  const aliases = [
+    [['codex', 'codex-cli', 'chatgpt'], 'codex-cli'],
+    [['claude', 'claude-cli', 'claude-code', 'claude code'], 'claude-cli'],
+    [['openai', 'openai-api', 'openai api'], 'openai-api'],
+    [['anthropic', 'anthropic-api', 'anthropic api'], 'anthropic'],
+    [['baseline'], 'baseline'],
+  ];
+
+  for (const [names, target] of aliases) {
+    if (names.includes(normalized) && configuredProviders.includes(target)) {
+      return target;
+    }
+  }
+
+  return rawProvider;
 }

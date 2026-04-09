@@ -144,6 +144,34 @@ test('provider state can be switched to another configured provider', () => {
   }
 });
 
+test('provider state accepts human-friendly provider aliases', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
+  const previousHome = process.env.HOME;
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.HOME = tempDir;
+  delete process.env.CODEX_HOME;
+
+  try {
+    const character = {
+      llm: {
+        provider: 'codex-cli',
+        fallbackProviders: ['claude-cli', 'openai-api'],
+      },
+    };
+
+    assert.equal(setActiveProvider(character, 'claude'), 'claude-cli');
+    assert.equal(getActiveProvider(character), 'claude-cli');
+    assert.equal(setActiveProvider(character, 'openai'), 'openai-api');
+    assert.equal(getActiveProvider(character), 'openai-api');
+    assert.equal(setActiveProvider(character, 'codex'), 'codex-cli');
+    assert.equal(getActiveProvider(character), 'codex-cli');
+  } finally {
+    process.env.HOME = previousHome;
+    process.env.CODEX_HOME = previousCodexHome;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test('buildCodexCliArgs includes cwd, output path, and prompt', () => {
   const args = buildCodexCliArgs({
     prompt: 'Reply with ok',
