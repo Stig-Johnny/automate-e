@@ -61,6 +61,7 @@ const webhookHandler = Object.keys(character.webhooks || {}).length > 0
 
 const dashboard = createDashboard(character, memory, { webhookHandler });
 if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
+let botControlPollingInterval = null;
 
 client.once('ready', () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);
@@ -330,6 +331,8 @@ function normalizeControlCommand(content) {
 }
 
 async function startBotControlPolling() {
+  if (botControlPollingInterval) return;
+
   const allowedBots = character.discord?.allowBots || [];
   if (allowedBots.length === 0) return;
 
@@ -342,7 +345,7 @@ async function startBotControlPolling() {
   const targetChannels = guildChannels.filter(channel => channelNames.includes(`#${channel.name}`));
   if (targetChannels.length === 0) return;
 
-  setInterval(async () => {
+  botControlPollingInterval = setInterval(async () => {
     for (const channel of targetChannels) {
       await pollBotControlChannel(channel.id, allowedBots);
     }
