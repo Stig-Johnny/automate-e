@@ -9,6 +9,7 @@ import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
 import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
 import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
+import { fetchAgentOverview } from './conductor.js';
 import { buildHeartbeatSnapshot } from './agent-heartbeat.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -284,6 +285,16 @@ async function handleControlCommand(message, replyChannel) {
     return true;
   }
 
+  if (command === 'status') {
+    try {
+      const agents = await fetchAgentOverview();
+      await replyChannel.send(formatAgentOverviewReport(agents));
+    } catch (error) {
+      await replyChannel.send(`Could not load Conductor-E agent status: ${error.message}`);
+    }
+    return true;
+  }
+
   if (command.startsWith('use:')) {
     const provider = command.slice('use:'.length);
     try {
@@ -321,6 +332,9 @@ async function handleControlCommand(message, replyChannel) {
 
 function normalizeControlCommand(content) {
   const normalized = content.trim().toLowerCase();
+  if (['/status', 'status', 'agent status'].includes(normalized)) {
+    return 'status';
+  }
   if (['/provider', 'provider', 'status provider'].includes(normalized)) {
     return 'provider';
   }
@@ -335,6 +349,41 @@ function normalizeControlCommand(content) {
     return 'retry-login';
   }
   return null;
+}
+
+function formatAgentOverviewReport(agents) {
+  if (!Array.isArray(agents) || agents.length === 0) {
+    return 'No agents found in Conductor-E.';
+  }
+
+  const liveAgents = agents
+    .filter(agent => !String(agent.id || '').includes('#'))
+    .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+
+  const onlineCount = liveAgents.filter(agent => agent.isOnline).length;
+  const degradedCount = liveAgents.filter(agent =>
+    (agent.providers || []).some(provider => provider.status !== 'ready' && provider.status !== 'authenticated')
+    || (agent.integrations || []).some(integration =>
+      !['ready', 'connected', 'configured', 'authenticated'].includes(integration.status)),
+  ).length;
+
+  const lines = [
+    `Agent overview: ${onlineCount}/${liveAgents.length} online, ${degradedCount} degraded.`,
+  ];
+
+  for (const agent of liveAgents) {
+    const providerBits = (agent.providers || [])
+      .map(provider => `${provider.active ? '*' : ''}${provider.name}:${provider.status}`)
+      .join(', ') || 'none';
+    const integrationBits = (agent.integrations || [])
+      .map(integration => `${integration.name}:${integration.status}`)
+      .join(', ') || 'none';
+    lines.push(
+      `- ${agent.id} | ${agent.isOnline ? 'online' : 'offline'} | active=${agent.activeProvider || 'n/a'} | providers=[${providerBits}] | integrations=[${integrationBits}]`,
+    );
+  }
+
+  return lines.join('\n').slice(0, 1900);
 }
 
 async function startBotControlPolling() {
