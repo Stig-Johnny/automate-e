@@ -356,8 +356,15 @@ function formatAgentOverviewReport(agents) {
     return 'No agents found in Conductor-E.';
   }
 
-  const liveAgents = agents
+  const relevantAgents = agents
     .filter(agent => !String(agent.id || '').includes('#'))
+    .filter(agent =>
+      agent.isOnline
+      || (agent.providers || []).length > 0
+      || (agent.integrations || []).length > 0,
+    );
+
+  const liveAgents = relevantAgents
     .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
 
   const onlineCount = liveAgents.filter(agent => agent.isOnline).length;
