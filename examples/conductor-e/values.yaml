@@ -11,6 +11,10 @@ imagePullSecrets:
 secrets:
   existingSecret: conductor-e-secrets
 
+codexHomePersistence:
+  enabled: true
+  size: 1Gi
+
 # Extra env vars for MCP servers
 extraEnv:
   - name: GITHUB_PERSONAL_ACCESS_TOKEN
@@ -111,9 +115,22 @@ character:
     format: concise
 
   llm:
-    provider: anthropic
-    model: claude-haiku-4-5-20251001
+    provider: codex-cli
+    authMode: device-auth
+    model: gpt-5.4
     temperature: 0.2
+    fallbackProviders:
+      - claude-cli
+      - openai-api
+    providers:
+      codex-cli:
+        model: gpt-5.4
+        authMode: device-auth
+      claude-cli:
+        model: claude-sonnet-4-5
+        maxTurns: 10
+      openai-api:
+        model: gpt-5.4
 
   memory:
     conversationRetention: 30d

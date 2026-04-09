@@ -57,7 +57,7 @@
     "provider": "codex-cli",
     "model": "gpt-5.4",
     "temperature": 0.7,
-    "fallbackProviders": ["claude-cli"],
+    "fallbackProviders": ["claude-cli", "openai-api"],
     "providers": {
       "codex-cli": {
         "model": "gpt-5.4",
@@ -66,6 +66,9 @@
       "claude-cli": {
         "model": "claude-sonnet-4-5",
         "maxTurns": 10
+      },
+      "openai-api": {
+        "model": "gpt-5.4"
       }
     }
   }

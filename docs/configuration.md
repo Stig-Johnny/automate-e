@@ -245,8 +245,8 @@ LLM provider configuration.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `provider` | string | `"anthropic"` | LLM provider: `"anthropic"`, `"claude-cli"`, or `"codex-cli"` |
-| `fallbackProviders` | string[] | `[]` | Ordered fallback providers to try if the primary provider fails |
+| `provider` | string | `"anthropic"` | LLM provider: `"anthropic"`, `"claude-cli"`, `"codex-cli"`, or `"openai-api"` |
+| `fallbackProviders` | string[] | `[]` | Additional providers available for manual switching. The first provider remains the default active provider. |
 | `providers` | object | `{}` | Provider-specific overrides keyed by provider name |
 | `model` | string | `"claude-haiku-4-5-20251001"` | Model identifier passed to the selected provider |
 | `temperature` | number | `0.3` | Response randomness (0.0 = deterministic, 1.0 = creative) |
@@ -254,24 +254,30 @@ LLM provider configuration.
 | `maxTurns` | number | `10` | Maximum turns for CLI providers (`claude-cli`, `codex-cli`). |
 | `timeoutMs` | number | `300000` | CLI timeout in milliseconds for CLI providers. |
 | `search` | boolean | `false` | Enables Codex web search when `provider` is `codex-cli`. |
+| `authMode` | string | `"auto"` | For `codex-cli`: `"auto"` or `"device-auth"` |
+| `passMcpToCli` | boolean | `false` | Passes `mcpServers` through to CLI providers that support inline MCP config |
+| `dangerouslyBypassApprovalsAndSandbox` | boolean | `false` | For `codex-cli`, runs outside Codex's normal approvals and sandbox flow |
 
 Notes:
 
 - `anthropic` uses the Anthropic SDK and `ANTHROPIC_API_KEY`.
 - `claude-cli` uses the local `claude` command. OAuth subscription tokens (`sk-ant-oat...`) automatically route to this mode.
 - `codex-cli` uses the local `codex` command.
+- `openai-api` uses `OPENAI_API_KEY` directly against OpenAI's HTTP API, with the same tool set available to the SDK providers.
 - `llm.authMode: device-auth` tells the runtime to require `codex login --device-auth` and surface the login URL/code through progress messages before running a turn.
 - Without `llm.authMode: device-auth`, `codex-cli` uses the existing environment, which can be either a stored Codex login or `OPENAI_API_KEY`.
-- `fallbackProviders` lets one agent try multiple providers in order. This is useful when you want Codex and Claude Code available at the same time with automatic failover.
+- `llm.passMcpToCli: true` passes `mcpServers` through to `codex exec` so the CLI can use the same MCP servers as the SDK providers.
+- `llm.dangerouslyBypassApprovalsAndSandbox: true` enables Codex execution outside its normal approvals / sandbox flow. When this is enabled, the runtime must not also pass `--full-auto`.
+- `fallbackProviders` defines which additional providers are available for manual switching. Automate-E keeps one active provider at a time instead of silently failing over between them.
 - `providers.{name}` can override provider-specific settings such as `model`, `timeoutMs`, `maxTurns`, or `authMode` without duplicating the entire `llm` block.
 
-Example with Codex primary and Claude Code fallback:
+Example with Codex as the default provider and Claude Code / OpenAI API available for manual switching:
 
 ```json
 {
   "llm": {
     "provider": "codex-cli",
-    "fallbackProviders": ["claude-cli"],
+    "fallbackProviders": ["claude-cli", "openai-api"],
     "providers": {
       "codex-cli": {
         "model": "gpt-5.4",
@@ -280,6 +286,9 @@ Example with Codex primary and Claude Code fallback:
       "claude-cli": {
         "model": "claude-sonnet-4-5",
         "maxTurns": 10
+      },
+      "openai-api": {
+        "model": "gpt-5.4"
       }
     }
   }
@@ -303,6 +312,15 @@ Configuration for one-shot cron mode. When set, the agent can run on a schedule 
 | `prompt` | string | Yes | The prompt to execute on each cron run |
 
 The cron schedule itself is configured in the Helm chart (`cron.schedule`), not in `character.json`. Results are posted to the `DISCORD_WEBHOOK_URL` environment variable if set.
+
+When `codex-cli` is used in cron / one-shot mode, the runtime can also send operator progress updates to that webhook, including:
+
+- login required
+- login already in progress
+- login cooling down / rate-limited
+- login complete
+- selected provider failed
+- operator must switch provider manually before retrying
 
 ## `webhooks`
 

@@ -22,8 +22,8 @@ const stats = {
 export function trackUsage(model, usage) {
   if (!usage) return;
 
-  const inputTokens = usage.input_tokens || 0;
-  const outputTokens = usage.output_tokens || 0;
+  const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
+  const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
   const cacheCreation = usage.cache_creation_input_tokens || 0;
   const cacheRead = usage.cache_read_input_tokens || 0;
 

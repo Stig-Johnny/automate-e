@@ -8,6 +8,7 @@ import { createWebhookHandler } from './webhook.js';
 import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
 import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
+import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
 
 const character = loadCharacter();
 startTokenRefresh();
@@ -262,6 +263,22 @@ async function handleControlCommand(message, replyChannel) {
   const command = normalizeControlCommand(message.content);
   if (!command) return false;
 
+  if (command === 'provider') {
+    await replyChannel.send(describeProviderState(character));
+    return true;
+  }
+
+  if (command.startsWith('use:')) {
+    const provider = command.slice('use:'.length);
+    try {
+      const selected = setActiveProvider(character, provider);
+      await replyChannel.send(`Active provider set to \`${selected}\`. Configured providers: ${getConfiguredProviders(character).join(', ')}.`);
+    } catch (error) {
+      await replyChannel.send(error.message);
+    }
+    return true;
+  }
+
   if (command === 'abort-login') {
     const aborted = abortDeviceAuthFlow();
     await replyChannel.send(
@@ -288,6 +305,13 @@ async function handleControlCommand(message, replyChannel) {
 
 function normalizeControlCommand(content) {
   const normalized = content.trim().toLowerCase();
+  if (['/provider', 'provider', 'status provider'].includes(normalized)) {
+    return 'provider';
+  }
+  const useMatch = normalized.match(/^\/?use\s+([a-z0-9-]+)$/);
+  if (useMatch) {
+    return `use:${useMatch[1]}`;
+  }
   if (['/abort-login', 'abort login', 'cancel login'].includes(normalized)) {
     return 'abort-login';
   }

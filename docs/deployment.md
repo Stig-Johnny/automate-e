@@ -128,6 +128,25 @@ For `llm.provider: codex-cli`, there are two auth patterns:
 - If you set `llm.authMode: device-auth`, the runtime can trigger `codex login --device-auth`, post the browser URL/code through progress updates, and wait for a human to complete login.
 - Kubernetes/ephemeral pod: prefer `OPENAI_API_KEY` because interactive ChatGPT login is brittle across pod restarts.
 
+If you must use ChatGPT login in Kubernetes, preserve the Codex home directory and mount it at the real runtime path:
+
+```yaml
+codexHomePersistence:
+  enabled: true
+  size: 1Gi
+
+extraEnv:
+  - name: CODEX_HOME
+    value: /home/node/.codex
+```
+
+This only works reliably if:
+
+- the pod uses a stable runtime home
+- the PVC is mounted at the actual Codex home path
+- the workload stays single-replica
+- Discord/webhook progress messages are enabled so operators can complete device-auth
+
 ## ArgoCD
 
 ArgoCD syncs the Helm chart directly from the automate-e repo:
@@ -210,6 +229,14 @@ kubectl create secret generic my-agent-secrets \
 ```
 
 You can also run cron-only (no Discord bot) by omitting the `discord-bot-token`.
+
+For Codex device-auth in cron / one-shot mode, that webhook is also where operator alerts go:
+
+- login required
+- login already in progress
+- cooldown / rate-limit
+- login complete
+- selected provider failed
 
 ## Adding a New Agent
 

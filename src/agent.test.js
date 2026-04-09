@@ -1,8 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { resolveAgentProvider } from './agent/provider-mode.js';
 import { buildCodexCliArgs } from './agent/providers/codex-cli.js';
 import { buildProviderChain, resolveCharacterForProvider } from './agent/provider-chain.js';
+import { describeProviderState, getActiveProvider, setActiveProvider } from './agent/provider-state.js';
 import {
   buildCodexEnv,
   ensureCodexAuth,
@@ -41,15 +45,24 @@ test('resolveAgentProvider respects explicit codex-cli provider', () => {
   assert.equal(provider, 'codex-cli');
 });
 
+test('resolveAgentProvider respects explicit openai-api provider', () => {
+  delete process.env.CODEX_CLI_MODE;
+  delete process.env.CLAUDE_CLI_MODE;
+  delete process.env.ANTHROPIC_API_KEY;
+
+  const provider = resolveAgentProvider({ llm: { provider: 'openai-api' } });
+  assert.equal(provider, 'openai-api');
+});
+
 test('buildProviderChain keeps primary provider first and appends fallbacks', () => {
   const chain = buildProviderChain({
     llm: {
       provider: 'codex-cli',
-      fallbackProviders: ['claude-cli', 'anthropic'],
+      fallbackProviders: ['claude-cli', 'openai-api', 'anthropic'],
     },
   });
 
-  assert.deepEqual(chain, ['codex-cli', 'claude-cli', 'anthropic']);
+  assert.deepEqual(chain, ['codex-cli', 'claude-cli', 'openai-api', 'anthropic']);
 });
 
 test('buildProviderChain deduplicates duplicate providers', () => {
@@ -81,6 +94,54 @@ test('resolveCharacterForProvider applies provider-specific llm overrides', () =
   assert.equal(character.llm.provider, 'claude-cli');
   assert.equal(character.llm.model, 'sonnet');
   assert.equal(character.llm.timeoutMs, 2000);
+});
+
+test('provider state defaults to the configured primary provider', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
+  const previousHome = process.env.HOME;
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.HOME = tempDir;
+  delete process.env.CODEX_HOME;
+
+  try {
+    const character = {
+      llm: {
+        provider: 'codex-cli',
+        fallbackProviders: ['claude-cli', 'openai-api'],
+      },
+    };
+
+    assert.equal(getActiveProvider(character), 'codex-cli');
+    assert.match(describeProviderState(character), /Active provider: codex-cli/);
+  } finally {
+    process.env.HOME = previousHome;
+    process.env.CODEX_HOME = previousCodexHome;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('provider state can be switched to another configured provider', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
+  const previousHome = process.env.HOME;
+  const previousCodexHome = process.env.CODEX_HOME;
+  process.env.HOME = tempDir;
+  delete process.env.CODEX_HOME;
+
+  try {
+    const character = {
+      llm: {
+        provider: 'codex-cli',
+        fallbackProviders: ['claude-cli', 'openai-api'],
+      },
+    };
+
+    assert.equal(setActiveProvider(character, 'claude-cli'), 'claude-cli');
+    assert.equal(getActiveProvider(character), 'claude-cli');
+  } finally {
+    process.env.HOME = previousHome;
+    process.env.CODEX_HOME = previousCodexHome;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
 });
 
 test('buildCodexCliArgs includes cwd, output path, and prompt', () => {
