@@ -60,6 +60,35 @@ export function resetDeviceAuthCooldown() {
   nextDeviceAuthAllowedAt = 0;
 }
 
+export async function getCodexAuthenticationState(character = null) {
+  const authMode = character?.llm?.authMode || 'auto';
+  const usesDeviceAuth = authMode === 'device-auth' || process.env.CODEX_DEVICE_AUTH === 'true';
+
+  if (!usesDeviceAuth) {
+    return process.env.OPENAI_API_KEY
+      ? { status: 'ready', details: 'using OPENAI_API_KEY' }
+      : { status: 'missing_auth', details: 'OPENAI_API_KEY is not configured' };
+  }
+
+  const cooldownMs = getDeviceAuthCooldownRemainingMs();
+  if (cooldownMs > 0) {
+    return {
+      status: 'cooldown',
+      details: `login cooling down for about ${Math.ceil(cooldownMs / 60000)} minute(s)`,
+    };
+  }
+
+  if (activeDeviceAuth) {
+    return { status: 'auth_in_progress', details: 'device login is already in progress' };
+  }
+
+  if (await isCodexLoggedIn()) {
+    return { status: 'authenticated', details: 'logged in using ChatGPT' };
+  }
+
+  return { status: 'auth_required', details: 'device login required' };
+}
+
 export function startDeviceAuthCooldownForTest(retryAfterMs, now = Date.now()) {
   startDeviceAuthCooldown(retryAfterMs, now);
 }

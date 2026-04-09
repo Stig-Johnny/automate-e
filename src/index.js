@@ -9,12 +9,13 @@ import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
 import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
 import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
+import { buildHeartbeatSnapshot } from './agent-heartbeat.js';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const character = loadCharacter();
 startTokenRefresh();
-const heartbeat = startHeartbeat(character);
+let heartbeat = null;
 
 const client = new Client({
   intents: [
@@ -34,6 +35,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const memory = await createMemory();
 const mcpClients = await connectMcpServers(character.mcpServers);
 const agent = createAgent(character, memory, mcpClients);
+heartbeat = startHeartbeat(character, {
+  getSnapshot: async () => buildHeartbeatSnapshot(character, {
+    discordReady: client.isReady(),
+    mcpStatus: mcpClients.serverStatus,
+  }),
+});
 
 // Webhook handler for single-process mode
 const webhookHandler = Object.keys(character.webhooks || {}).length > 0

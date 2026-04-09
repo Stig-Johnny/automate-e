@@ -147,6 +147,28 @@ This only works reliably if:
 - the workload stays single-replica
 - Discord/webhook progress messages are enabled so operators can complete device-auth
 
+## Heartbeat Overview
+
+When `heartbeat.url` and `heartbeat.agentId` are configured, Automate-E sends a richer `HEARTBEAT` payload to Conductor-E every interval.
+
+That heartbeat now includes:
+
+- `status`, `currentIssue`, `currentRepo`
+- `activeProvider`
+- `availableProviders`
+- `providers[]` with health for each configured AI service
+- `integrations[]` with runtime integration status
+
+The integration snapshot covers the things Conductor-E needs for operator visibility, including:
+
+- Discord connectivity
+- Conductor heartbeat target configuration
+- MCP server connectivity snapshot
+- webhook configuration
+- GitHub auth configuration
+
+Conductor-E projects this into `/api/agents`, which becomes the single overview of which agents are online, which AI service each agent is actively using, and which integrations are healthy or degraded.
+
 ## ArgoCD
 
 ArgoCD syncs the Helm chart directly from the automate-e repo:
