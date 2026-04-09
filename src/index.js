@@ -9,6 +9,8 @@ import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
 import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
 import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const character = loadCharacter();
 startTokenRefresh();
@@ -156,6 +158,11 @@ client.once('ready', () => {
     setTimeout(runCron, 15_000);
     setInterval(runCron, intervalMs);
   }
+
+  startBotControlPolling().catch(error => {
+    console.error('[Automate-E] Bot control polling failed:', error);
+    dashboard.addLog('error', `Bot control polling failed: ${error.message}`);
+  });
 });
 
 // Parse cron schedule shorthand: "*/5 * * * *" → 300000ms
@@ -319,4 +326,79 @@ function normalizeControlCommand(content) {
     return 'retry-login';
   }
   return null;
+}
+
+async function startBotControlPolling() {
+  const allowedBots = character.discord?.allowBots || [];
+  if (allowedBots.length === 0) return;
+
+  const channelNames = character.discord?.channels || [];
+  if (channelNames.length === 0) return;
+
+  const guildChannels = [...client.channels.cache.values()]
+    .filter(channel => channel?.isTextBased?.() && channel?.name);
+
+  const targetChannels = guildChannels.filter(channel => channelNames.includes(`#${channel.name}`));
+  if (targetChannels.length === 0) return;
+
+  setInterval(async () => {
+    for (const channel of targetChannels) {
+      await pollBotControlChannel(channel.id, allowedBots);
+    }
+  }, 5000);
+}
+
+async function pollBotControlChannel(channelId, allowedBots) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return;
+
+  const cursorFile = getBotControlCursorFile(channelId);
+  const lastSeenId = readCursor(cursorFile);
+
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=10`, {
+    headers: { Authorization: `Bot ${token}` },
+  });
+
+  if (!response.ok) return;
+
+  const messages = await response.json();
+  const sorted = [...messages].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const message of sorted) {
+    const messageId = message?.id;
+    const authorId = message?.author?.id;
+    const isBot = !!message?.author?.bot;
+    const content = message?.content;
+
+    if (!messageId || !content) continue;
+    if (messageId.localeCompare(lastSeenId) <= 0) continue;
+
+    writeCursor(cursorFile, messageId);
+    if (!isBot || !allowedBots.includes(authorId)) continue;
+
+    const control = normalizeControlCommand(content);
+    if (!control) continue;
+
+    const replyChannel = await client.channels.fetch(channelId);
+    if (!replyChannel?.isTextBased?.()) continue;
+    await handleControlCommand({ content }, replyChannel);
+  }
+}
+
+function getBotControlCursorFile(channelId) {
+  const stateRoot = process.env.CODEX_HOME || process.env.HOME || process.cwd();
+  return path.join(stateRoot, `automate-e-bot-control-last-${channelId}`);
+}
+
+function readCursor(file) {
+  try {
+    return fs.readFileSync(file, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeCursor(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${value}\n`);
 }
