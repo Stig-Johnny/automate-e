@@ -20,8 +20,9 @@
  * @param {number} opts.costUsd
  * @param {string} [opts.repo]       - Override CONDUCTOR_REPO env var
  * @param {number} [opts.issueNumber] - Override CONDUCTOR_ISSUE_NUMBER env var
+ * @param {string} [opts.category]    - "work" | "idle" | "chat" — cost category
  */
-export function reportTokenUsage({ model, inputTokens, outputTokens, costUsd, repo, issueNumber } = {}) {
+export function reportTokenUsage({ model, inputTokens, outputTokens, costUsd, repo, issueNumber, category } = {}) {
   const conductorBaseUrl = process.env.CONDUCTOR_BASE_URL;
   const agentId = process.env.AGENT_ID;
 
@@ -39,6 +40,7 @@ export function reportTokenUsage({ model, inputTokens, outputTokens, costUsd, re
     inputTokens: inputTokens || 0,
     outputTokens: outputTokens || 0,
     costUsd: costUsd || 0,
+    category: category || '',
   });
 
   fetch(`${conductorBaseUrl}/api/events`, {
