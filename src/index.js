@@ -77,8 +77,23 @@ client.once('ready', () => {
   console.log(`[Automate-E] DMs: enabled`);
   dashboard.addLog('info', `Logged in as ${client.user.tag}`);
 
-  // In-process cron: poll on a schedule and post results to a channel thread
-  if (character.cron?.prompt && character.cron?.channelId) {
+  // Try event-driven stream consumer first, fall back to cron polling
+  let streamConsumer = null;
+  if (process.env.VALKEY_URL) {
+    const { createStreamConsumer } = await import('./stream-consumer.js');
+    streamConsumer = createStreamConsumer(character, agent, dashboard, client);
+    if (streamConsumer) {
+      const started = await streamConsumer.start();
+      if (started) {
+        console.log('[Automate-E] Stream consumer active — cron polling disabled');
+        dashboard.addLog('info', 'Stream consumer active');
+      } else {
+        streamConsumer = null;
+      }
+    }
+  }
+
+  if (!streamConsumer && character.cron?.prompt && character.cron?.channelId) {
     const intervalMs = parseCronInterval(character.cron.schedule) || 300_000;
     console.log(`[Automate-E] Cron enabled: every ${intervalMs / 1000}s → #${character.cron.channelId}`);
     dashboard.addLog('info', `Cron: every ${intervalMs / 1000}s`);
