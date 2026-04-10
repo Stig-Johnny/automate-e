@@ -136,18 +136,17 @@ client.once('ready', () => {
 
         const onProgress = async (msg) => {
           progressCount++;
-          // Create thread on first tool call (means we got an assignment)
-          if (!threadCreated && progressCount === 1) {
+          // Skip non-work messages (heartbeats, provider info, status)
+          if (/^(⏳|Using provider|CLI |Done|idle)/i.test(msg?.trim?.())) return;
+
+          // Only create thread when we detect an actual assignment
+          if (!threadCreated) {
+            const assignInfo = msg?.match(/ASSIGNMENT:\s*(\S+)#(\d+)\s*[—–-]\s*(.+)/);
+            if (!assignInfo) return; // Not an assignment — don't create thread
             threadCreated = true;
             try {
-              // Try to extract assignment info from the progress message or early output
-              const assignInfo = msg?.match(/ASSIGNMENT:\s*(\S+)#(\d+)\s*[—–-]\s*(.+)/);
-              const label = assignInfo
-                ? `🔧 **${character.name}** working on ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 80)}`
-                : `🔧 **${character.name}** picked up work — implementing...`;
-              const threadName = assignInfo
-                ? `🔧 ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 40)}`
-                : `🔧 ${character.name} — ${new Date().toISOString().slice(0, 16)}`;
+              const label = `🔧 **${character.name}** working on ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 80)}`;
+              const threadName = `🔧 ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 40)}`;
               const startMsg = await channel.send(label);
               activeThread = await startMsg.startThread({
                 name: threadName,
