@@ -108,11 +108,13 @@ client.once('ready', async () => {
       cronRunning = true;
       try {
         // Stage 1: check queue in Node.js before spawning CLI — zero cost on idle
+        // Skip for coordinator agents — they need to run their scan every cycle
         const conductorBaseUrl = process.env.CONDUCTOR_BASE_URL
           || (character.heartbeat?.url?.replace(/\/api\/events$/, '') ?? null);
         const agentId = process.env.AGENT_ID || character.heartbeat?.agentId;
+        const isCoordinator = character.name?.toLowerCase().includes('conductor');
 
-        if (conductorBaseUrl && agentId) {
+        if (conductorBaseUrl && agentId && !isCoordinator) {
           let queueRes;
           try {
             queueRes = await fetch(`${conductorBaseUrl}/api/assignments/next?agentId=${agentId}`);
