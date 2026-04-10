@@ -92,6 +92,33 @@ client.once('ready', () => {
       }
       cronRunning = true;
       try {
+        // Stage 1: check queue in Node.js before spawning CLI — zero cost on idle
+        const conductorBaseUrl = process.env.CONDUCTOR_BASE_URL
+          || (character.heartbeat?.url?.replace(/\/api\/events$/, '') ?? null);
+        const agentId = process.env.AGENT_ID || character.heartbeat?.agentId;
+
+        if (conductorBaseUrl && agentId) {
+          let queueRes;
+          try {
+            queueRes = await fetch(`${conductorBaseUrl}/api/assignments/next?agentId=${agentId}`);
+          } catch (err) {
+            console.warn(`[Automate-E] Cron: queue check failed — ${err.message}`);
+          }
+
+          if (queueRes?.status === 204) {
+            // No assignment — send HEARTBEAT directly, skip CLI entirely
+            console.log('[Automate-E] Cron: idle — no assignment, skipping CLI');
+            dashboard.addLog('info', 'Cron: idle — no assignment, skipping CLI');
+            await fetch(`${conductorBaseUrl}/api/events`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'HEARTBEAT', agentId, status: 'idle' }),
+            }).catch(err => console.warn(`[Automate-E] Cron: heartbeat post failed — ${err.message}`));
+            return;
+          }
+          // 200 with assignment (or queue check failed) — fall through to CLI
+        }
+
         const channel = await client.channels.fetch(character.cron.channelId);
         if (!channel) {
           console.error(`[Automate-E] Cron channel ${character.cron.channelId} not found`);
