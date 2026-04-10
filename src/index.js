@@ -71,7 +71,7 @@ const dashboard = createDashboard(character, memory, { webhookHandler });
 if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
 let botControlPollingInterval = null;
 
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);
   console.log(`[Automate-E] Listening on channels: ${character.discord.channels.join(', ')}`);
   console.log(`[Automate-E] DMs: enabled`);
