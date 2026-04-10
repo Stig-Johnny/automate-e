@@ -9,7 +9,7 @@ import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
 import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
 import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
-import { fetchAgentOverview } from './conductor.js';
+import { fetchAgentOverview, reportTokenUsage } from './conductor.js';
 import { buildHeartbeatSnapshot } from './agent-heartbeat.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -141,6 +141,20 @@ client.once('ready', () => {
           threadId: `cron-${character.name}`,
           attachments: [],
         }, dashboard, onProgress);
+
+        // Extract assignment info for cost tagging
+        const assignmentMatch = response?.match(/ASSIGNMENT:\s*(\S+)#(\d+)/);
+        if (assignmentMatch) {
+          const [, assignedRepo, assignedIssue] = assignmentMatch;
+          dashboard.addLog('info', `Cron: assignment detected — ${assignedRepo}#${assignedIssue}`);
+          // Set env vars so any further reportTokenUsage calls in this cycle pick up the context
+          process.env.CONDUCTOR_REPO = assignedRepo;
+          process.env.CONDUCTOR_ISSUE_NUMBER = assignedIssue;
+        } else {
+          // Clear per-cycle env vars so idle runs aren't misattributed
+          delete process.env.CONDUCTOR_REPO;
+          delete process.env.CONDUCTOR_ISSUE_NUMBER;
+        }
 
         // Only post meaningful responses to Discord (skip idle/empty/generic)
         const isIdle = !response || response.trim().length < 20

@@ -61,6 +61,7 @@ export function createAnthropicSdkAgent(character, memory, mcpClients) {
           inputTokens: usageInfo?.inputTokens ?? 0,
           outputTokens: usageInfo?.outputTokens ?? 0,
           costUsd: usageInfo?.costUsd ?? 0,
+          category: 'chat',
         });
         if (dashboard && usageInfo) {
           dashboard.addLog('info', `LLM: ${usageInfo.inputTokens} in / ${usageInfo.outputTokens} out, $${usageInfo.costUsd.toFixed(4)}`);

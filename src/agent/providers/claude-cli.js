@@ -6,6 +6,17 @@ import { reportTokenUsage } from '../../conductor.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
 import { AgentProviderError, toAgentProviderError } from '../provider-error.js';
 
+/**
+ * Extract repo and issue number from CLI output.
+ * Looks for patterns like "ASSIGNMENT: owner/repo#123" in the response text.
+ */
+function extractAssignment(text) {
+  if (!text) return null;
+  const match = text.match(/ASSIGNMENT:\s*(\S+)#(\d+)/);
+  if (match) return { repo: match[1], issueNumber: parseInt(match[2], 10) };
+  return null;
+}
+
 export function createClaudeCliAgent(character, memory) {
   console.log('[Automate-E] Using Claude Code CLI for LLM');
   const systemPrompt = buildSystemPrompt(character);
@@ -68,10 +79,21 @@ export function createClaudeCliAgent(character, memory) {
 
           if (output) {
             const costUsd = output.total_cost_usd || 0;
-            console.log(`[Automate-E] Claude CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}`);
-            reportTokenUsage({ model: character.llm.model, inputTokens: 0, outputTokens: 0, costUsd });
-            if (dashboard) dashboard.addLog('info', `Claude CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}`);
-            resolve(output.result || `CLI ${output.subtype || 'done'}`);
+            const resultText = output.result || '';
+            const assignment = extractAssignment(resultText);
+            const category = assignment ? 'work' : 'idle';
+            console.log(`[Automate-E] Claude CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}, category=${category}${assignment ? `, assignment=${assignment.repo}#${assignment.issueNumber}` : ''}`);
+            reportTokenUsage({
+              model: character.llm.model,
+              inputTokens: 0,
+              outputTokens: 0,
+              costUsd,
+              repo: assignment?.repo,
+              issueNumber: assignment?.issueNumber,
+              category,
+            });
+            if (dashboard) dashboard.addLog('info', `Claude CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}, ${category}`);
+            resolve(resultText || `CLI ${output.subtype || 'done'}`);
             return;
           }
 
