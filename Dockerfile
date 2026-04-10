@@ -1,9 +1,10 @@
 FROM node:20-slim
-RUN apt-get update && apt-get install -y --no-install-recommends curl jq && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl jq && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
-# Install Claude Code CLI — required for OAuth subscription token (sk-ant-oat) mode
+# Install Claude Code CLI and Codex CLI for CLI-based provider modes
 RUN npm install -g @anthropic-ai/claude-code
+RUN npm install -g @openai/codex
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev

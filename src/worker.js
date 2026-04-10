@@ -86,6 +86,17 @@ async function sendDiscordReply(threadId, content, isDM) {
   }
 }
 
+async function sendWebhookMessage(content) {
+  const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+  if (!webhookUrl || !content?.trim()) return;
+
+  await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: character.name, content: content.slice(0, 2000) }),
+  });
+}
+
 // --- Graceful shutdown ---
 let shuttingDown = false;
 for (const signal of ['SIGTERM', 'SIGINT']) {
@@ -125,24 +136,26 @@ while (!shuttingDown) {
 
           console.log(`[Worker] Processing stream entry ${id} from ${msg.authorName} (thread: ${msg.threadId})`);
 
+          const progress = async (text) => {
+            if (!text?.trim()) return;
+            if (msg.isWebhook) {
+              await sendWebhookMessage(text);
+              return;
+            }
+            await sendDiscordReply(msg.threadId, text, msg.isDM);
+          };
+
           const response = await agent.process(msg.messageContent, {
             userId: msg.authorId,
             userName: msg.authorName,
             channelId: msg.channelId,
             threadId: msg.threadId,
             attachments: msg.attachments || [],
-          }, dashboard);
+          }, dashboard, progress);
 
           // Send reply — webhook events go to Discord webhook, messages go to thread
           if (msg.isWebhook) {
-            const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
-            if (webhookUrl && response.trim()) {
-              await fetch(webhookUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: character.name, content: response.slice(0, 2000) }),
-              });
-            }
+            await sendWebhookMessage(response);
           } else {
             await sendDiscordReply(msg.threadId, response, msg.isDM);
           }

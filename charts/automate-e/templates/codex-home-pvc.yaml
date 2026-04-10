@@ -1,0 +1,17 @@
+{{- if and .Values.codexHomePersistence.enabled (not .Values.codexHomePersistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "automate-e.fullname" . }}-codex-home
+  labels:
+    {{- include "automate-e.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.codexHomePersistence.size }}
+  {{- with .Values.codexHomePersistence.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}

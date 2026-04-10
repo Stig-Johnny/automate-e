@@ -52,11 +52,21 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: anthropic-api-key
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "automate-e.secretName" . }}
+                  key: openai-api-key
+                  optional: true
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: database-url
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: CODEX_HOME
+              value: {{ .Values.codexHomePersistence.mountPath | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -64,6 +74,10 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           {{- if .Values.dashboard.enabled }}
           ports:
             - name: dashboard
@@ -75,6 +89,11 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 {{- else }}
 # Gateway+Worker mode: gateway handles Discord, workers process messages via Redis
 ---
@@ -114,6 +133,10 @@ spec:
                   key: discord-bot-token
             - name: REDIS_URL
               value: {{ .Values.redis.url | quote }}
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: CODEX_HOME
+              value: {{ .Values.codexHomePersistence.mountPath | quote }}
+            {{- end }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -121,6 +144,10 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           {{- if .Values.dashboard.enabled }}
           ports:
             - name: dashboard
@@ -132,6 +159,11 @@ spec:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -172,13 +204,23 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: anthropic-api-key
-            - name: DATABASE_URL
+            - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
-                  key: database-url
-            - name: REDIS_URL
-              value: {{ .Values.redis.url | quote }}
+                  key: openai-api-key
+                  optional: true
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: database-url
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: CODEX_HOME
+                  value: {{ .Values.codexHomePersistence.mountPath | quote }}
+                {{- end }}
+                - name: REDIS_URL
+                  value: {{ .Values.redis.url | quote }}
             {{- with .Values.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -186,12 +228,21 @@ spec:
             - name: character
               mountPath: /config
               readOnly: true
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              mountPath: {{ .Values.codexHomePersistence.mountPath }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: character
           configMap:
             name: {{ include "automate-e.fullname" . }}-character
+        {{- if .Values.codexHomePersistence.enabled }}
+        - name: codex-home
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+        {{- end }}
 {{- end }}
 ---
 {{- if .Values.cron.enabled }}
@@ -232,12 +283,22 @@ spec:
                     secretKeyRef:
                       name: {{ include "automate-e.secretName" . }}
                       key: anthropic-api-key
+                - name: OPENAI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ include "automate-e.secretName" . }}
+                      key: openai-api-key
+                      optional: true
                 - name: DATABASE_URL
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "automate-e.secretName" . }}
                       key: database-url
                       optional: true
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: CODEX_HOME
+                  value: {{ .Values.codexHomePersistence.mountPath | quote }}
+                {{- end }}
                 - name: DISCORD_WEBHOOK_URL
                   valueFrom:
                     secretKeyRef:
@@ -251,10 +312,19 @@ spec:
                 - name: character
                   mountPath: /config
                   readOnly: true
+                {{- if .Values.codexHomePersistence.enabled }}
+                - name: codex-home
+                  mountPath: {{ .Values.codexHomePersistence.mountPath }}
+                {{- end }}
               resources:
                 {{- toYaml .Values.resources | nindent 16 }}
           volumes:
             - name: character
               configMap:
                 name: {{ include "automate-e.fullname" . }}-character
+            {{- if .Values.codexHomePersistence.enabled }}
+            - name: codex-home
+              persistentVolumeClaim:
+                claimName: {{ default (printf "%s-codex-home" (include "automate-e.fullname" .)) .Values.codexHomePersistence.existingClaim }}
+            {{- end }}
 {{- end }}

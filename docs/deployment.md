@@ -99,11 +99,12 @@ kubectl create namespace automate-e
 Create secrets manually before deploying. The chart references them via `secrets.existingSecret`:
 
 ```bash
-# Agent secrets (Discord token + Anthropic key + optional DB URL)
+# Agent secrets (Discord token + Anthropic/OpenAI key + optional DB URL)
 kubectl create secret generic my-agent-secrets \
   -n automate-e \
   --from-literal=discord-bot-token=<token> \
   --from-literal=anthropic-api-key=<key> \
+  --from-literal=openai-api-key=<key> \
   --from-literal=database-url=<url>
 
 # GHCR pull secret (for private images)
@@ -120,6 +121,53 @@ kubectl create secret generic cloudflared-automate-e-token \
 ```
 
 Do not use SealedSecrets. Secrets are created manually and referenced by name.
+
+For `llm.provider: codex-cli`, there are two auth patterns:
+
+- Persistent host: run `codex login` on the machine and preserve the Codex auth directory.
+- If you set `llm.authMode: device-auth`, the runtime can trigger `codex login --device-auth`, post the browser URL/code through progress updates, and wait for a human to complete login.
+- Kubernetes/ephemeral pod: prefer `OPENAI_API_KEY` because interactive ChatGPT login is brittle across pod restarts.
+
+If you must use ChatGPT login in Kubernetes, preserve the Codex home directory and mount it at the real runtime path:
+
+```yaml
+codexHomePersistence:
+  enabled: true
+  size: 1Gi
+
+extraEnv:
+  - name: CODEX_HOME
+    value: /home/node/.codex
+```
+
+This only works reliably if:
+
+- the pod uses a stable runtime home
+- the PVC is mounted at the actual Codex home path
+- the workload stays single-replica
+- Discord/webhook progress messages are enabled so operators can complete device-auth
+
+## Heartbeat Overview
+
+When `heartbeat.url` and `heartbeat.agentId` are configured, Automate-E sends a richer `HEARTBEAT` payload to Conductor-E every interval.
+
+That heartbeat now includes:
+
+- `status`, `currentIssue`, `currentRepo`
+- `activeProvider`
+- `availableProviders`
+- `providers[]` with health for each configured AI service
+- `integrations[]` with runtime integration status
+
+The integration snapshot covers the things Conductor-E needs for operator visibility, including:
+
+- Discord connectivity
+- Conductor heartbeat target configuration
+- MCP server connectivity snapshot
+- webhook configuration
+- GitHub auth configuration
+
+Conductor-E projects this into `/api/agents`, which becomes the single overview of which agents are online, which AI service each agent is actively using, and which integrations are healthy or degraded.
 
 ## ArgoCD
 
@@ -197,11 +245,20 @@ kubectl create secret generic my-agent-secrets \
   -n my-namespace \
   --from-literal=discord-bot-token=<token> \
   --from-literal=anthropic-api-key=<key> \
+  --from-literal=openai-api-key=<key> \
   --from-literal=discord-webhook-url=<webhook-url> \
   --from-literal=github-token=<pat>
 ```
 
 You can also run cron-only (no Discord bot) by omitting the `discord-bot-token`.
+
+For Codex device-auth in cron / one-shot mode, that webhook is also where operator alerts go:
+
+- login required
+- login already in progress
+- cooldown / rate-limit
+- login complete
+- selected provider failed
 
 ## Adding a New Agent
 

@@ -49,3 +49,17 @@ export function reportTokenUsage({ model, inputTokens, outputTokens, costUsd, re
     console.warn('[Automate-E] Failed to report token usage to conductor-e:', err.message);
   });
 }
+
+export async function fetchAgentOverview() {
+  const conductorBaseUrl = process.env.CONDUCTOR_BASE_URL;
+  if (!conductorBaseUrl) {
+    throw new Error('CONDUCTOR_BASE_URL is not configured.');
+  }
+
+  const response = await fetch(`${conductorBaseUrl}/api/agents`);
+  if (!response.ok) {
+    throw new Error(`Conductor-E returned ${response.status} for /api/agents.`);
+  }
+
+  return response.json();
+}

@@ -13,7 +13,7 @@
  * }
  */
 
-export function startHeartbeat(character) {
+export function startHeartbeat(character, options = {}) {
   const config = character.heartbeat;
   if (!config?.url || !config?.agentId) return null;
 
@@ -24,12 +24,17 @@ export function startHeartbeat(character) {
 
   const send = async () => {
     try {
+      const snapshot = options.getSnapshot ? await options.getSnapshot() : {};
       const body = {
         type: 'HEARTBEAT',
         agentId: config.agentId,
         status: currentStatus,
         currentIssue,
         currentRepo,
+        activeProvider: snapshot.activeProvider || null,
+        availableProviders: snapshot.availableProviders || [],
+        providers: snapshot.providers || [],
+        integrations: snapshot.integrations || [],
       };
 
       const res = await fetch(config.url, {

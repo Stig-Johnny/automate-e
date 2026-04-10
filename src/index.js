@@ -7,10 +7,16 @@ import { connectMcpServers } from './mcp.js';
 import { createWebhookHandler } from './webhook.js';
 import { startHeartbeat } from './heartbeat.js';
 import { startTokenRefresh } from './github-token.js';
+import { abortDeviceAuthFlow, resetDeviceAuthCooldown } from './agent/providers/codex-auth.js';
+import { describeProviderState, getConfiguredProviders, setActiveProvider } from './agent/provider-state.js';
+import { fetchAgentOverview } from './conductor.js';
+import { buildHeartbeatSnapshot } from './agent-heartbeat.js';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const character = loadCharacter();
 startTokenRefresh();
-const heartbeat = startHeartbeat(character);
+let heartbeat = null;
 
 const client = new Client({
   intents: [
@@ -30,6 +36,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const memory = await createMemory();
 const mcpClients = await connectMcpServers(character.mcpServers);
 const agent = createAgent(character, memory, mcpClients);
+heartbeat = startHeartbeat(character, {
+  getSnapshot: async () => buildHeartbeatSnapshot(character, {
+    discordReady: client.isReady(),
+    mcpStatus: mcpClients.serverStatus,
+  }),
+});
 
 // Webhook handler for single-process mode
 const webhookHandler = Object.keys(character.webhooks || {}).length > 0
@@ -57,6 +69,7 @@ const webhookHandler = Object.keys(character.webhooks || {}).length > 0
 
 const dashboard = createDashboard(character, memory, { webhookHandler });
 if (mcpClients.serverStatus) dashboard.setMcpStatus(mcpClients.serverStatus);
+let botControlPollingInterval = null;
 
 client.once('ready', () => {
   console.log(`[Automate-E] Logged in as ${client.user.tag}`);
@@ -154,6 +167,11 @@ client.once('ready', () => {
     setTimeout(runCron, 15_000);
     setInterval(runCron, intervalMs);
   }
+
+  startBotControlPolling().catch(error => {
+    console.error('[Automate-E] Bot control polling failed:', error);
+    dashboard.addLog('error', `Bot control polling failed: ${error.message}`);
+  });
 });
 
 // Parse cron schedule shorthand: "*/5 * * * *" → 300000ms
@@ -169,6 +187,7 @@ client.on('messageCreate', async (message) => {
 
   const allowedBots = character.discord?.allowBots || [];
   if (message.author.bot && !allowedBots.includes(message.author.id)) return;
+  if (message.author.bot && normalizeControlCommand(message.content)) return;
 
   const isDM = message.channel.type === ChannelType.DM;
 
@@ -184,8 +203,13 @@ client.on('messageCreate', async (message) => {
 
   try {
     if (isDM) {
+      const controlReply = await handleControlCommand(message, message.channel);
+      if (controlReply) return;
       await message.channel.sendTyping();
       dashboard.updateSession(`dm-${message.author.id}`, { user: message.author.username, type: 'dm' });
+      const progress = async (text) => {
+        await message.channel.send(text.slice(0, 2000));
+      };
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -195,10 +219,12 @@ client.on('messageCreate', async (message) => {
         attachments: [...message.attachments.values()].map(a => ({
           name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      }, dashboard);
+      }, dashboard, progress);
 
       await message.reply(response);
     } else {
+      const controlReply = await handleControlCommand(message, message.channel);
+      if (controlReply) return;
       let thread;
       if (message.hasThread) {
         thread = message.thread;
@@ -220,6 +246,9 @@ client.on('messageCreate', async (message) => {
 
       await thread.sendTyping();
       dashboard.updateSession(thread.id, { user: message.author.displayName, type: 'thread' });
+      const progress = async (text) => {
+        await thread.send(text.slice(0, 2000));
+      };
 
       const response = await agent.process(message.content, {
         userId: message.author.id,
@@ -229,7 +258,7 @@ client.on('messageCreate', async (message) => {
         attachments: [...message.attachments.values()].map(a => ({
           name: a.name, url: a.url, contentType: a.contentType, size: a.size,
         })),
-      }, dashboard);
+      }, dashboard, progress);
 
       await thread.send(response);
     }
@@ -238,7 +267,7 @@ client.on('messageCreate', async (message) => {
     console.error('[Automate-E] Error processing message:', error);
     dashboard.addLog('error', `Error: ${error.message}`);
     try {
-      await message.reply('Sorry, something went wrong. Please try again.');
+      await message.reply(error.userMessage || 'Sorry, something went wrong. Please try again.');
     } catch (replyError) {
       console.error('[Automate-E] Failed to send error reply:', replyError);
     }
@@ -246,3 +275,197 @@ client.on('messageCreate', async (message) => {
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
+
+async function handleControlCommand(message, replyChannel) {
+  const command = normalizeControlCommand(message.content);
+  if (!command) return false;
+
+  if (command === 'provider') {
+    await replyChannel.send(describeProviderState(character));
+    return true;
+  }
+
+  if (command === 'status') {
+    try {
+      const agents = await fetchAgentOverview();
+      await replyChannel.send(formatAgentOverviewReport(agents));
+    } catch (error) {
+      await replyChannel.send(`Could not load Conductor-E agent status: ${error.message}`);
+    }
+    return true;
+  }
+
+  if (command.startsWith('use:')) {
+    const provider = command.slice('use:'.length);
+    try {
+      const selected = setActiveProvider(character, provider);
+      await replyChannel.send(`Active provider set to \`${selected}\`. Configured providers: ${getConfiguredProviders(character).join(', ')}.`);
+    } catch (error) {
+      await replyChannel.send(error.message);
+    }
+    return true;
+  }
+
+  if (command === 'abort-login') {
+    const aborted = abortDeviceAuthFlow();
+    await replyChannel.send(
+      aborted
+        ? 'Codex login flow aborted. Send `/retry-login` or another message when you want a fresh login link and code.'
+        : 'No Codex login flow is currently running.',
+    );
+    return true;
+  }
+
+  if (command === 'retry-login') {
+    const aborted = abortDeviceAuthFlow();
+    resetDeviceAuthCooldown();
+    await replyChannel.send(
+      aborted
+        ? 'Codex login flow reset. Send your next message now and I will start a fresh login flow.'
+        : 'Codex login cooldown cleared. Send your next message now and I will start a fresh login flow.',
+    );
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeControlCommand(content) {
+  const normalized = content.trim().toLowerCase();
+  if (['/status', 'status', 'agent status'].includes(normalized)) {
+    return 'status';
+  }
+  if (['/provider', 'provider', 'status provider'].includes(normalized)) {
+    return 'provider';
+  }
+  const useMatch = normalized.match(/^\/?use\s+([a-z0-9-]+)$/);
+  if (useMatch) {
+    return `use:${useMatch[1]}`;
+  }
+  if (['/abort-login', 'abort login', 'cancel login'].includes(normalized)) {
+    return 'abort-login';
+  }
+  if (['/retry-login', 'retry login', 'reset login'].includes(normalized)) {
+    return 'retry-login';
+  }
+  return null;
+}
+
+function formatAgentOverviewReport(agents) {
+  if (!Array.isArray(agents) || agents.length === 0) {
+    return 'No agents found in Conductor-E.';
+  }
+
+  const relevantAgents = agents
+    .filter(agent => !String(agent.id || '').includes('#'))
+    .filter(agent =>
+      agent.isOnline
+      || (agent.providers || []).length > 0
+      || (agent.integrations || []).length > 0,
+    );
+
+  const liveAgents = relevantAgents
+    .sort((a, b) => String(a.id || '').localeCompare(String(b.id || '')));
+
+  const onlineCount = liveAgents.filter(agent => agent.isOnline).length;
+  const degradedCount = liveAgents.filter(agent =>
+    (agent.providers || []).some(provider => provider.status !== 'ready' && provider.status !== 'authenticated')
+    || (agent.integrations || []).some(integration =>
+      !['ready', 'connected', 'configured', 'authenticated'].includes(integration.status)),
+  ).length;
+
+  const lines = [
+    `Agent overview: ${onlineCount}/${liveAgents.length} online, ${degradedCount} degraded.`,
+  ];
+
+  for (const agent of liveAgents) {
+    const providerBits = (agent.providers || [])
+      .map(provider => `${provider.active ? '*' : ''}${provider.name}:${provider.status}`)
+      .join(', ') || 'none';
+    const integrationBits = (agent.integrations || [])
+      .map(integration => `${integration.name}:${integration.status}`)
+      .join(', ') || 'none';
+    lines.push(
+      `- ${agent.id} | ${agent.isOnline ? 'online' : 'offline'} | active=${agent.activeProvider || 'n/a'} | providers=[${providerBits}] | integrations=[${integrationBits}]`,
+    );
+  }
+
+  return lines.join('\n').slice(0, 1900);
+}
+
+async function startBotControlPolling() {
+  if (botControlPollingInterval) return;
+
+  const allowedBots = character.discord?.allowBots || [];
+  if (allowedBots.length === 0) return;
+
+  const channelNames = character.discord?.channels || [];
+  if (channelNames.length === 0) return;
+
+  const guildChannels = [...client.channels.cache.values()]
+    .filter(channel => channel?.isTextBased?.() && channel?.name);
+
+  const targetChannels = guildChannels.filter(channel => channelNames.includes(`#${channel.name}`));
+  if (targetChannels.length === 0) return;
+
+  botControlPollingInterval = setInterval(async () => {
+    for (const channel of targetChannels) {
+      await pollBotControlChannel(channel.id, allowedBots);
+    }
+  }, 5000);
+}
+
+async function pollBotControlChannel(channelId, allowedBots) {
+  const token = process.env.DISCORD_BOT_TOKEN;
+  if (!token) return;
+
+  const cursorFile = getBotControlCursorFile(channelId);
+  const lastSeenId = readCursor(cursorFile);
+
+  const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=10`, {
+    headers: { Authorization: `Bot ${token}` },
+  });
+
+  if (!response.ok) return;
+
+  const messages = await response.json();
+  const sorted = [...messages].sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const message of sorted) {
+    const messageId = message?.id;
+    const authorId = message?.author?.id;
+    const isBot = !!message?.author?.bot;
+    const content = message?.content;
+
+    if (!messageId || !content) continue;
+    if (messageId.localeCompare(lastSeenId) <= 0) continue;
+
+    writeCursor(cursorFile, messageId);
+    if (!isBot || !allowedBots.includes(authorId)) continue;
+
+    const control = normalizeControlCommand(content);
+    if (!control) continue;
+
+    const replyChannel = await client.channels.fetch(channelId);
+    if (!replyChannel?.isTextBased?.()) continue;
+    await handleControlCommand({ content }, replyChannel);
+  }
+}
+
+function getBotControlCursorFile(channelId) {
+  const stateRoot = process.env.CODEX_HOME || process.env.HOME || process.cwd();
+  return path.join(stateRoot, `automate-e-bot-control-last-${channelId}`);
+}
+
+function readCursor(file) {
+  try {
+    return fs.readFileSync(file, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeCursor(file, value) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, `${value}\n`);
+}

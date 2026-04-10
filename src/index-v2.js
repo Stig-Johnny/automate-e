@@ -58,13 +58,17 @@ messaging.onMessage(async (msg) => {
   dashboard.updateSession(msg.threadId, { user: msg.userName, type: 'message' });
 
   try {
+    const progress = async (text) => {
+      await messaging.sendReply(msg, text);
+    };
+
     const response = await agent.process(msg.content, {
       userId: msg.userId,
       userName: msg.userName,
       channelId: msg.channelId,
       threadId: msg.threadId,
       attachments: msg.attachments || [],
-    }, dashboard);
+    }, dashboard, progress);
 
     await messaging.sendReply(msg, response);
     dashboard.addLog('info', `Replied to ${msg.userName}`);

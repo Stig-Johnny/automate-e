@@ -6,7 +6,7 @@ Kubernetes-native AI agent runtime for Discord. Define an agent with a `characte
 
 - Character-driven configuration (personality, tools, memory)
 - Discord gateway with thread-per-conversation
-- Claude API agent loop with function calling
+- Multiple LLM execution modes: Anthropic SDK, Claude Code CLI, and Codex CLI
 - Postgres-backed persistent memory (conversations, facts, patterns)
 - Live dashboard with WebSocket (logs, sessions, tool calls, cost tracking)
 - Helm chart for easy deployment
