@@ -140,12 +140,20 @@ client.once('ready', () => {
           if (!threadCreated && progressCount === 1) {
             threadCreated = true;
             try {
-              const startMsg = await channel.send(`🔧 **${character.name}** picked up work — implementing...`);
+              // Try to extract assignment info from the progress message or early output
+              const assignInfo = msg?.match(/ASSIGNMENT:\s*(\S+)#(\d+)\s*[—–-]\s*(.+)/);
+              const label = assignInfo
+                ? `🔧 **${character.name}** working on ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 80)}`
+                : `🔧 **${character.name}** picked up work — implementing...`;
+              const threadName = assignInfo
+                ? `🔧 ${assignInfo[1]}#${assignInfo[2]} — ${assignInfo[3].slice(0, 40)}`
+                : `🔧 ${character.name} — ${new Date().toISOString().slice(0, 16)}`;
+              const startMsg = await channel.send(label);
               activeThread = await startMsg.startThread({
-                name: `🔧 ${character.name} — ${new Date().toISOString().slice(0, 16)}`,
+                name: threadName,
                 autoArchiveDuration: 4320,
               });
-              dashboard.addLog('info', 'Cron: created work thread');
+              dashboard.addLog('info', `Cron: created work thread — ${threadName}`);
             } catch (err) {
               console.error(`[Automate-E] Failed to create thread: ${err.message}`);
             }
