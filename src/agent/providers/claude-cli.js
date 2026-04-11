@@ -3,6 +3,7 @@ import { writeFileSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { reportTokenUsage } from '../../conductor.js';
+import { publishLog } from '../../agent-log.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
 import { AgentProviderError, toAgentProviderError } from '../provider-error.js';
 
@@ -57,6 +58,10 @@ export function createClaudeCliAgent(character, memory) {
       const cwd = character.workDir || undefined;
       if (cwd) console.log(`[Automate-E] Claude CLI cwd: ${cwd}`);
       console.log(`[Automate-E] Claude CLI call: model=${character.llm.model}`);
+      publishLog('info', `Claude CLI started: model=${character.llm.model}, maxTurns=${character.llm?.maxTurns ?? 10}`, {
+        repo: process.env.CONDUCTOR_REPO,
+        issueNumber: process.env.CONDUCTOR_ISSUE_NUMBER ? parseInt(process.env.CONDUCTOR_ISSUE_NUMBER) : undefined,
+      });
 
       const reply = await new Promise((resolve, reject) => {
         const proc = spawn('claude', args, { env: process.env, cwd, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -77,7 +82,15 @@ export function createClaudeCliAgent(character, memory) {
         }, 60_000);
 
         proc.stdout.on('data', chunk => { stdout += chunk.toString(); });
-        proc.stderr.on('data', () => {});
+        proc.stderr.on('data', chunk => {
+          const line = chunk.toString().trim();
+          if (line) {
+            publishLog('cli-stderr', line, {
+              repo: process.env.CONDUCTOR_REPO,
+              issueNumber: process.env.CONDUCTOR_ISSUE_NUMBER ? parseInt(process.env.CONDUCTOR_ISSUE_NUMBER) : undefined,
+            });
+          }
+        });
 
         proc.on('close', code => {
           clearTimeout(killTimer);
@@ -92,7 +105,9 @@ export function createClaudeCliAgent(character, memory) {
             const resultText = output.result || '';
             const assignment = extractAssignment(resultText);
             const category = assignment ? 'work' : 'idle';
-            console.log(`[Automate-E] Claude CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}, category=${category}${assignment ? `, assignment=${assignment.repo}#${assignment.issueNumber}` : ''}`);
+            const completeMsg = `Claude CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}, category=${category}${assignment ? `, assignment=${assignment.repo}#${assignment.issueNumber}` : ''}`;
+            console.log(`[Automate-E] ${completeMsg}`);
+            publishLog('info', completeMsg, { repo: assignment?.repo, issueNumber: assignment?.issueNumber });
             reportTokenUsage({
               model: character.llm.model,
               inputTokens: 0,
