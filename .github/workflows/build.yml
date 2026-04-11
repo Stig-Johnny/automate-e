@@ -10,7 +10,8 @@ on:
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'
-      - 'Dockerfile'
+      - 'Dockerfile*'
+      - 'charts/**'
       - '.github/workflows/build.yml'
 
 env:
@@ -18,43 +19,13 @@ env:
   IMAGE: ghcr.io/stig-johnny/automate-e
 
 jobs:
-  build-and-push:
+  build-base:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    outputs:
-      image-tag: ${{ steps.meta.outputs.primary_tag }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set image tags
-        id: meta
-        shell: bash
-        run: |
-          short_sha="${GITHUB_SHA::12}"
-          safe_ref="$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | tr '/_' '--' | tr -cd 'a-z0-9.-')"
-
-          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
-            primary_tag="${short_sha}"
-            {
-              echo "primary_tag=${primary_tag}"
-              echo 'tags<<EOF'
-              echo "${IMAGE}:latest"
-              echo "${IMAGE}:${primary_tag}"
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
-          else
-            primary_tag="${safe_ref}-${short_sha}"
-            {
-              echo "primary_tag=${primary_tag}"
-              echo "short_sha=${short_sha}"
-              echo 'tags<<EOF'
-              echo "${IMAGE}:${primary_tag}"
-              echo "${IMAGE}:${short_sha}"
-              echo 'EOF'
-            } >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -63,40 +34,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build default image (backwards compat)
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
 
-      - name: Sync example-e gitops to exact SHA
-        if: ${{ github.ref_name == 'feature/codex-cli-provider-example-e' }}
-        shell: bash
-        env:
-          CLUSTER_GITOPS_PAT: ${{ secrets.CLUSTER_GITOPS_PAT }}
-        run: |
-          if [[ -z "${CLUSTER_GITOPS_PAT}" ]]; then
-            echo "CLUSTER_GITOPS_PAT is not configured; skipping gitops sync."
-            exit 0
-          fi
+      - name: Build base image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.base
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:base
 
-          git clone "https://x-access-token:${CLUSTER_GITOPS_PAT}@github.com/Stig-Johnny/cluster-gitops.git" \
-            --branch feature/example-e-codex-k8s-login \
-            --depth 1 \
-            cluster-gitops
+  build-stacks:
+    needs: build-base
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - dockerfile: Dockerfile.node
+            tag: node
+          - dockerfile: Dockerfile.dotnet
+            tag: dotnet
+          - dockerfile: Dockerfile.python
+            tag: python
+    steps:
+      - uses: actions/checkout@v4
 
-          file="cluster-gitops/apps/example-e-argocd.yaml"
-          perl -0pi -e 's#targetRevision: .*?\n    path: charts/automate-e#targetRevision: '"${GITHUB_SHA}"'\n    path: charts/automate-e#' "$file"
-          perl -0pi -e 's#(name: image\.tag\n\s+value: ).*#$1'"${{ steps.meta.outputs.short_sha }}"'#' "$file"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-          cd cluster-gitops
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if git diff --quiet; then
-            echo "No gitops changes needed."
-            exit 0
-          fi
-          git add apps/example-e-argocd.yaml
-          git commit -m "chore: sync example-e to automate-e ${{ steps.meta.outputs.short_sha }}"
-          git push origin HEAD:feature/example-e-codex-k8s-login
+      - name: Build stack image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ matrix.tag }}
