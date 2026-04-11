@@ -1,0 +1,6 @@
+# Rig agent configuration — tells Conductor-E what this repo needs
+stack: node
+tools: []
+testCommand: npm test
+buildCommand: npm run build
+escalate: []
