@@ -2,6 +2,8 @@
 # For: automate-e, MCP servers, web apps, React, Next.js
 FROM ghcr.io/stig-johnny/automate-e:base AS node-agent
 
+USER root
+
 # Node 22 already in base image
 # Add common dev tools
 RUN npm install -g typescript tsx jest vitest eslint prettier
@@ -9,4 +11,5 @@ RUN npm install -g typescript tsx jest vitest eslint prettier
 # Label for KEDA routing
 LABEL rig.stack="node"
 
+USER agent
 CMD ["node", "src/index.js"]

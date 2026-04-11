@@ -2,6 +2,8 @@
 # For: conductor-e, backend APIs, C# projects
 FROM ghcr.io/stig-johnny/automate-e:base AS dotnet-agent
 
+USER root
+
 # Install .NET 10 SDK
 RUN curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh \
     && chmod +x /tmp/dotnet-install.sh \
@@ -14,4 +16,5 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 LABEL rig.stack="dotnet"
 
+USER agent
 CMD ["node", "src/index.js"]
