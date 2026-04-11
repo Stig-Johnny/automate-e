@@ -67,6 +67,9 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       }
     }
 
+    // Clear KEDA signal list (tells KEDA we're processing the work)
+    try { await redis.del(`signal:${agentId}`); } catch {}
+
     // Run the agent — always, even if Discord thread failed
     process.env.CONDUCTOR_REPO = repo;
     process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
