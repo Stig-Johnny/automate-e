@@ -1,0 +1,12 @@
+# Node.js development agent
+# For: automate-e, MCP servers, web apps, React, Next.js
+FROM ghcr.io/stig-johnny/automate-e:base AS node-agent
+
+# Node 22 already in base image
+# Add common dev tools
+RUN npm install -g typescript tsx jest vitest eslint prettier
+
+# Label for KEDA routing
+LABEL rig.stack="node"
+
+CMD ["node", "src/index.js"]

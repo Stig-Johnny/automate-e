@@ -1,0 +1,14 @@
+# Python development agent
+# For: scripts, ML, data pipelines
+FROM ghcr.io/stig-johnny/automate-e:base AS python-agent
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -sf python3 /usr/bin/python
+
+RUN pip3 install --break-system-packages pytest black ruff
+
+LABEL rig.stack="python"
+
+CMD ["node", "src/index.js"]
