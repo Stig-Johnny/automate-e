@@ -26,6 +26,7 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { spawn } from 'child_process';
 
 const CLI = process.env.ADVISOR_CLI || 'claude';
@@ -79,7 +80,7 @@ const server = new Server(
   { capabilities: { tools: {} } }
 );
 
-server.setRequestHandler({ method: 'tools/list' }, async () => ({
+server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: TOOL_NAME,
@@ -112,7 +113,7 @@ server.setRequestHandler({ method: 'tools/list' }, async () => ({
   ],
 }));
 
-server.setRequestHandler({ method: 'tools/call' }, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (request.params.name !== TOOL_NAME) {
     return { content: [{ type: 'text', text: `Unknown tool: ${request.params.name}` }] };
   }
