@@ -65,8 +65,8 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
           process.env.CONDUCTOR_REPO = repo;
           process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
 
-          // Run the agent
-          const prompt = character.cron?.prompt || `Implement the assigned issue: ${repo}#${issueNumber} — ${title}`;
+          // Run the agent with assignment-specific prompt (not the generic cron prompt)
+          const prompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
           const response = await agent.process(prompt, {
             userId: 'stream-consumer',
             userName: character.name,
@@ -84,7 +84,9 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
           delete process.env.CONDUCTOR_ISSUE_NUMBER;
         }
       } catch (err) {
-        console.error(`[Stream] Discord error: ${err.message}`);
+        console.error(`[Stream] Error processing ${repo}#${issueNumber}: ${err.message}`);
+        // Don't ACK on error — message stays pending for retry
+        return;
       }
     }
 
