@@ -28,14 +28,24 @@ export function createClaudeCliAgent(character, memory) {
       const system = buildSystemWithFacts(systemPrompt, facts);
       const fullPrompt = buildCliPrompt(system, history, message, context);
 
-      const args = [
-        '-p', fullPrompt,
-        '--output-format', 'json',
-        '--model', character.llm.model,
-        '--system-prompt', system,
-        '--max-turns', String(character.llm?.maxTurns ?? 10),
-        '--dangerously-skip-permissions',
-      ];
+      // Check for session resumption
+      const sessionId = context?.sessionId;
+      const args = sessionId
+        ? [
+            '--resume', sessionId,
+            '-p', message, // continuation prompt (just the new instruction)
+            '--output-format', 'json',
+            '--max-turns', String(character.llm?.maxTurns ?? 10),
+            '--dangerously-skip-permissions',
+          ]
+        : [
+            '-p', fullPrompt,
+            '--output-format', 'json',
+            '--model', character.llm.model,
+            '--system-prompt', system,
+            '--max-turns', String(character.llm?.maxTurns ?? 10),
+            '--dangerously-skip-permissions',
+          ];
 
       let mcpConfigPath = null;
       if (character.llm?.passMcpToCli && character.mcpServers && Object.keys(character.mcpServers).length > 0) {
@@ -93,7 +103,9 @@ export function createClaudeCliAgent(character, memory) {
               category,
             });
             if (dashboard) dashboard.addLog('info', `Claude CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}, ${category}`);
-            resolve(resultText || `CLI ${output.subtype || 'done'}`);
+            // Return result with session_id for resumption
+            const result = resultText || `CLI ${output.subtype || 'done'}`;
+            resolve({ text: result, sessionId: output.session_id || null, toString() { return result; } });
             return;
           }
 
