@@ -19,6 +19,9 @@ RUN npm install -g @anthropic-ai/claude-code @openai/codex
 RUN git config --system init.defaultBranch main \
     && git config --system advice.detachedHead false
 
+# Create non-root agent user (Claude CLI blocks --dangerously-skip-permissions as root)
+RUN groupadd -r agent && useradd -r -g agent -m -d /home/agent agent
+
 WORKDIR /app
 
 # Install automate-e runtime
@@ -28,6 +31,11 @@ RUN npm ci --omit=dev
 COPY src/ src/
 COPY charts/ charts/
 
+# Create workspace directory owned by agent
+RUN mkdir -p /workspace && chown agent:agent /workspace /app
+
 ENV CHARACTER_FILE=/config/character.json
+
+USER agent
 
 CMD ["node", "src/index.js"]
