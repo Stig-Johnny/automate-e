@@ -49,46 +49,50 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
     console.log(`[Stream] Assignment received: ${repo}#${issueNumber} — ${title}`);
     dashboard?.addLog('info', `Stream: assignment ${repo}#${issueNumber}`);
 
-    // Post to Discord
+    // Try to post to Discord (non-fatal if thread creation fails)
     const channelId = character.cron?.channelId;
+    let thread = null;
     if (channelId && discordClient) {
       try {
         const channel = await discordClient.channels.fetch(channelId);
         if (channel) {
-          const msg = await channel.send(`**${character.name}** working on ${repo}#${issueNumber} — ${title?.slice(0, 80)}`);
-          const thread = await msg.startThread({
+          const msg = await channel.send(`🔧 **${character.name}** working on ${repo}#${issueNumber} — ${title?.slice(0, 80)}`);
+          thread = await msg.startThread({
             name: `${repo}#${issueNumber} — ${title?.slice(0, 40)}`,
             autoArchiveDuration: 4320,
           });
-
-          // Set env vars for cost tagging
-          process.env.CONDUCTOR_REPO = repo;
-          process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
-
-          // Run the agent with assignment-specific prompt (not the generic cron prompt)
-          const prompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
-          const response = await agent.process(prompt, {
-            userId: 'stream-consumer',
-            userName: character.name,
-            channelId,
-            threadId: `stream-${repo}-${issueNumber}`,
-            attachments: [],
-          }, dashboard);
-
-          if (response?.trim() && response.trim().length > 20) {
-            await thread.send(response.slice(0, 2000));
-          }
-
-          // Clear env vars
-          delete process.env.CONDUCTOR_REPO;
-          delete process.env.CONDUCTOR_ISSUE_NUMBER;
         }
       } catch (err) {
-        console.error(`[Stream] Error processing ${repo}#${issueNumber}: ${err.message}`);
-        // Don't ACK on error — message stays pending for retry
-        return;
+        console.warn(`[Stream] Discord thread failed (non-fatal): ${err.message}`);
       }
     }
+
+    // Run the agent — always, even if Discord thread failed
+    process.env.CONDUCTOR_REPO = repo;
+    process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
+
+    try {
+      const prompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+      const response = await agent.process(prompt, {
+        userId: 'stream-consumer',
+        userName: character.name,
+        channelId: channelId || 'stream',
+        threadId: `stream-${repo}-${issueNumber}`,
+        attachments: [],
+      }, dashboard);
+
+      if (response?.trim() && response.trim().length > 20 && thread) {
+        try { await thread.send(response.slice(0, 2000)); } catch {}
+      }
+    } catch (err) {
+      console.error(`[Stream] Agent error on ${repo}#${issueNumber}: ${err.message}`);
+      delete process.env.CONDUCTOR_REPO;
+      delete process.env.CONDUCTOR_ISSUE_NUMBER;
+      return; // Don't ACK — retry later
+    }
+
+    delete process.env.CONDUCTOR_REPO;
+    delete process.env.CONDUCTOR_ISSUE_NUMBER;
 
     // ACK the message
     await redis.xack(streamKey, groupName, id);
