@@ -17,6 +17,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE: ghcr.io/stig-johnny/automate-e
+  SHA_TAG: sha-${{ github.sha }}
 
 jobs:
   build-base:
@@ -24,6 +25,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      sha_tag: ${{ env.SHA_TAG }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,7 +37,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build default image (backwards compat)
+      - name: Build default image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -42,7 +45,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:${{ github.sha }}
+            ${{ env.IMAGE }}:${{ env.SHA_TAG }}
 
       - name: Build base image
         uses: docker/build-push-action@v6
@@ -52,6 +55,7 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:base
+            ${{ env.IMAGE }}:base-${{ env.SHA_TAG }}
 
   build-stacks:
     needs: build-base
@@ -86,3 +90,58 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE }}:${{ matrix.tag }}
+            ${{ env.IMAGE }}:${{ matrix.tag }}-${{ env.SHA_TAG }}
+
+  update-gitops:
+    needs: build-stacks
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Update rig-gitops image tags
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PAT }}
+        run: |
+          SHA_TAG="sha-${{ github.sha }}"
+
+          # Update dev-e-node
+          FILE="apps/dev-e/automate-e-helmrelease.yaml"
+          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
+          UPDATED=$(echo "$CONTENT" | sed "s/tag: node.*/tag: node-${SHA_TAG}/")
+          if [ "$CONTENT" != "$UPDATED" ]; then
+            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
+            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
+              -X PUT -f message="chore: pin dev-e-node to ${SHA_TAG}" \
+              -f content="$(echo "$UPDATED" | base64 -w0)" \
+              -f sha="$SHA" -f branch="main" --silent
+            echo "Updated dev-e-node to node-${SHA_TAG}"
+          fi
+
+          # Update dev-e-dotnet
+          FILE="apps/dev-e/dotnet-helmrelease.yaml"
+          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
+          UPDATED=$(echo "$CONTENT" | sed "s/tag: dotnet.*/tag: dotnet-${SHA_TAG}/")
+          if [ "$CONTENT" != "$UPDATED" ]; then
+            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
+            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
+              -X PUT -f message="chore: pin dev-e-dotnet to ${SHA_TAG}" \
+              -f content="$(echo "$UPDATED" | base64 -w0)" \
+              -f sha="$SHA" -f branch="main" --silent
+            echo "Updated dev-e-dotnet to dotnet-${SHA_TAG}"
+          fi
+
+          # Update dev-e-python
+          FILE="apps/dev-e/python-helmrelease.yaml"
+          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
+          UPDATED=$(echo "$CONTENT" | sed "s/tag: python.*/tag: python-${SHA_TAG}/")
+          if [ "$CONTENT" != "$UPDATED" ]; then
+            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
+            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
+              -X PUT -f message="chore: pin dev-e-python to ${SHA_TAG}" \
+              -f content="$(echo "$UPDATED" | base64 -w0)" \
+              -f sha="$SHA" -f branch="main" --silent
+            echo "Updated dev-e-python to python-${SHA_TAG}"
+          fi
+
+          echo "GitOps updated. FluxCD will deploy automatically."
