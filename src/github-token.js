@@ -14,6 +14,8 @@
  */
 
 import { createSign } from 'crypto';
+import { execSync } from 'child_process';
+import { writeFileSync } from 'fs';
 
 let cachedToken = null;
 let cachedExpiry = 0;
@@ -96,7 +98,34 @@ export function startTokenRefresh() {
   };
 
   // Refresh immediately, then every 50 minutes (tokens last 1 hour)
-  refresh();
-  setInterval(refresh, 50 * 60 * 1000);
+  refresh().then(() => configureGitCredentials());
+  setInterval(() => refresh().then(() => configureGitCredentials()), 50 * 60 * 1000);
   console.log(`[GitHub Token] Auto-refresh enabled for App ${appId}, installation ${installationId}`);
+}
+
+/**
+ * Configure git to use the current GITHUB_PERSONAL_ACCESS_TOKEN for pushes.
+ * Sets credential.helper to use a store file populated with the token.
+ */
+function configureGitCredentials() {
+  const token = process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
+  if (!token) return;
+
+  try {
+    // Set git user identity for commits
+    const name = process.env.GIT_AUTHOR_NAME || process.env.AGENT_ID || 'automate-e';
+    const email = process.env.GIT_AUTHOR_EMAIL || `${name}[bot]@users.noreply.github.com`;
+    execSync(`git config --global user.name "${name}"`, { stdio: 'ignore' });
+    execSync(`git config --global user.email "${email}"`, { stdio: 'ignore' });
+
+    // Write credential store file with token
+    const credLine = `https://x-access-token:${token}@github.com\n`;
+    const credPath = '/tmp/.git-credentials';
+    writeFileSync(credPath, credLine, { mode: 0o600 });
+    execSync(`git config --global credential.helper "store --file=${credPath}"`, { stdio: 'ignore' });
+
+    console.log(`[GitHub Token] Git credentials configured for ${name}`);
+  } catch (err) {
+    console.error(`[GitHub Token] Failed to configure git credentials: ${err.message}`);
+  }
 }
