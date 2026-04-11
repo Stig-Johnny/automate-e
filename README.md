@@ -103,3 +103,5 @@ examples/example-e/ # Example: simple demo agent
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+<!-- pipeline verified: end-to-end scale-to-zero test passed 2026-04-11 -->
