@@ -45,7 +45,7 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       assignment[fields[i]] = fields[i + 1];
     }
 
-    const { repo, issueNumber, title, priority } = assignment;
+    const { repo, issueNumber, title, priority, stack, testCommand, buildCommand, tools } = assignment;
     console.log(`[Stream] Assignment received: ${repo}#${issueNumber} — ${title}`);
     dashboard?.addLog('info', `Stream: assignment ${repo}#${issueNumber}`);
 
@@ -78,9 +78,24 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       try { existingSessionId = await redis.get(sessionKey); } catch {}
 
       const isIteration = !!existingSessionId;
+
+      // Build tool context
+      let toolContext = '';
+      if (tools) {
+        const toolList = tools.split(',').map(t => t.trim()).filter(Boolean);
+        if (toolList.length > 0) {
+          toolContext = `\n\n## Required tools\nInstall before starting: ${toolList.map(t => `\`${t}\``).join(', ')}\nUse npm/pip/apt as appropriate for your stack (${stack || 'node'}).`;
+        }
+      }
+      if (testCommand) toolContext += `\n\n## Test command\n\`${testCommand}\` — run this before pushing.`;
+      if (buildCommand) toolContext += `\n\n## Build command\n\`${buildCommand}\` — verify build passes.`;
+
+      // Always allow runtime installs
+      toolContext += '\n\n## Runtime installs\nIf you need a tool that is not installed, install it yourself (npm install -g, pip install, apt-get install). You have sudo access for apt-get. Prefer global installs so they persist for the session.';
+
       const prompt = isIteration
-        ? `Continue working on ${repo}#${issueNumber}.\n\n${assignment.body || title}`
-        : `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+        ? `Continue working on ${repo}#${issueNumber}.\n\n${assignment.body || title}${toolContext}`
+        : `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}${toolContext}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
 
       if (isIteration) {
         console.log(`[Stream] Resuming session ${existingSessionId} for ${repo}#${issueNumber}`);
