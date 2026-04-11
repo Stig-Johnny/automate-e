@@ -72,17 +72,41 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
     process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
 
     try {
-      const prompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+      // Check for existing session (for iteration/resumption)
+      const sessionKey = `session:${repo}#${issueNumber}`;
+      let existingSessionId = null;
+      try { existingSessionId = await redis.get(sessionKey); } catch {}
+
+      const isIteration = !!existingSessionId;
+      const prompt = isIteration
+        ? `Continue working on ${repo}#${issueNumber}.\n\n${assignment.body || title}`
+        : `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+
+      if (isIteration) {
+        console.log(`[Stream] Resuming session ${existingSessionId} for ${repo}#${issueNumber}`);
+      }
+
       const response = await agent.process(prompt, {
         userId: 'stream-consumer',
         userName: character.name,
         channelId: channelId || 'stream',
         threadId: `stream-${repo}-${issueNumber}`,
         attachments: [],
+        sessionId: existingSessionId, // passed to CLI agent for --resume
       }, dashboard);
 
-      if (response?.trim() && response.trim().length > 20 && thread) {
-        try { await thread.send(response.slice(0, 2000)); } catch {}
+      // Save session ID for future iterations
+      const newSessionId = response?.sessionId;
+      if (newSessionId) {
+        try {
+          await redis.set(sessionKey, newSessionId, 'EX', 86400 * 7); // 7 day TTL
+          console.log(`[Stream] Saved session ${newSessionId} for ${repo}#${issueNumber}`);
+        } catch {}
+      }
+
+      const responseText = response?.text || response?.toString() || '';
+      if (responseText.trim().length > 20 && thread) {
+        try { await thread.send(responseText.slice(0, 2000)); } catch {}
       }
     } catch (err) {
       console.error(`[Stream] Agent error on ${repo}#${issueNumber}: ${err.message}`);
