@@ -223,6 +223,43 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
           });
         } catch {}
       }
+      // If this is a review agent, detect result and post event for merge
+      const isReviewAgent = agentId.includes('review');
+      if (isReviewAgent && conductorUrl) {
+        const lowerText = responseText.toLowerCase();
+        const approved = lowerText.includes('approved') || lowerText.includes('approve');
+        const changesRequested = lowerText.includes('changes requested') || lowerText.includes('request changes');
+        const eventType = changesRequested ? 'REVIEW_DISPUTED' : approved ? 'REVIEW_PASSED' : null;
+
+        if (eventType) {
+          try {
+            await fetch(`${conductorUrl}/api/events`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: eventType,
+                repo,
+                issueNumber: parseInt(issueNumber),
+                agentId,
+                prNumber: parseInt(issueNumber), // for review assignments, issueNumber IS the PR number
+              }),
+            });
+            console.log(`[Stream] Review result: ${eventType} for ${repo}#${issueNumber}`);
+
+            // If approved, also trigger merge
+            if (eventType === 'REVIEW_PASSED') {
+              await fetch(`${conductorUrl}/api/merge`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ repo, prNumber: parseInt(issueNumber) }),
+              }).catch(() => {});
+            }
+          } catch (err2) {
+            console.warn(`[Stream] Failed to post review event: ${err2.message}`);
+          }
+        }
+      }
+
     } catch (err) {
       console.error(`[Stream] Agent error on ${repo}#${issueNumber}: ${err.message}`);
 
