@@ -105,43 +105,39 @@ jobs:
         run: |
           SHA_TAG="sha-${{ github.sha }}"
 
-          # Update dev-e-node
-          FILE="apps/dev-e/automate-e-helmrelease.yaml"
-          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
-          UPDATED=$(echo "$CONTENT" | sed "s/tag: node.*/tag: node-${SHA_TAG}/")
-          if [ "$CONTENT" != "$UPDATED" ]; then
-            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
-            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
-              -X PUT -f message="chore: pin dev-e-node to ${SHA_TAG}" \
-              -f content="$(echo "$UPDATED" | base64 -w0)" \
-              -f sha="$SHA" -f branch="main" --silent
-            echo "Updated dev-e-node to node-${SHA_TAG}"
-          fi
+          update_tag() {
+            local FILE="$1" OLD_TAG="$2" NEW_TAG="$3"
+            echo "Updating $FILE: $OLD_TAG → $NEW_TAG"
 
-          # Update dev-e-dotnet
-          FILE="apps/dev-e/dotnet-helmrelease.yaml"
-          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
-          UPDATED=$(echo "$CONTENT" | sed "s/tag: dotnet.*/tag: dotnet-${SHA_TAG}/")
-          if [ "$CONTENT" != "$UPDATED" ]; then
-            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
-            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
-              -X PUT -f message="chore: pin dev-e-dotnet to ${SHA_TAG}" \
-              -f content="$(echo "$UPDATED" | base64 -w0)" \
-              -f sha="$SHA" -f branch="main" --silent
-            echo "Updated dev-e-dotnet to dotnet-${SHA_TAG}"
-          fi
+            # Fetch current file
+            RESPONSE=$(gh api "repos/Stig-Johnny/rig-gitops/contents/$FILE" 2>&1) || {
+              echo "Failed to fetch $FILE: $RESPONSE"
+              return 1
+            }
 
-          # Update dev-e-python
-          FILE="apps/dev-e/python-helmrelease.yaml"
-          CONTENT=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.content' | base64 -d)
-          UPDATED=$(echo "$CONTENT" | sed "s/tag: python.*/tag: python-${SHA_TAG}/")
-          if [ "$CONTENT" != "$UPDATED" ]; then
-            SHA=$(gh api repos/Stig-Johnny/rig-gitops/contents/$FILE --jq '.sha')
-            echo "$UPDATED" | base64 -w0 | gh api repos/Stig-Johnny/rig-gitops/contents/$FILE \
-              -X PUT -f message="chore: pin dev-e-python to ${SHA_TAG}" \
-              -f content="$(echo "$UPDATED" | base64 -w0)" \
-              -f sha="$SHA" -f branch="main" --silent
-            echo "Updated dev-e-python to python-${SHA_TAG}"
-          fi
+            FILE_SHA=$(echo "$RESPONSE" | jq -r '.sha')
+            CONTENT=$(echo "$RESPONSE" | jq -r '.content' | base64 -d)
 
-          echo "GitOps updated. FluxCD will deploy automatically."
+            # Replace tag
+            UPDATED=$(echo "$CONTENT" | sed "s/tag: ${OLD_TAG}.*/tag: ${NEW_TAG}/")
+            if [ "$CONTENT" = "$UPDATED" ]; then
+              echo "No change needed for $FILE"
+              return 0
+            fi
+
+            # Push update
+            ENCODED=$(echo "$UPDATED" | base64 | tr -d '\n')
+            gh api "repos/Stig-Johnny/rig-gitops/contents/$FILE" \
+              -X PUT \
+              -f message="chore: pin $OLD_TAG to $NEW_TAG" \
+              -f content="$ENCODED" \
+              -f sha="$FILE_SHA" \
+              -f branch="main" \
+              --silent || echo "Failed to update $FILE"
+          }
+
+          update_tag "apps/dev-e/automate-e-helmrelease.yaml" "node" "node-${SHA_TAG}"
+          update_tag "apps/dev-e/dotnet-helmrelease.yaml" "dotnet" "dotnet-${SHA_TAG}"
+          update_tag "apps/dev-e/python-helmrelease.yaml" "python" "python-${SHA_TAG}"
+
+          echo "Done."
