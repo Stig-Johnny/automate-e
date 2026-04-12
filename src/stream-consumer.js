@@ -161,9 +161,19 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
         try { await thread.send(responseText.slice(0, 2000)); } catch {}
       }
 
-      // Extract PR number from response text
-      const prMatch = responseText.match(/pull\/(\d+)|PR #(\d+)|pr.*#(\d+)/i);
-      const prNumber = prMatch ? parseInt(prMatch[1] || prMatch[2] || prMatch[3]) : null;
+      // Extract PR number — prefer github.com URL, then fallback to "PR #N"
+      let prNumber = null;
+      const urlMatch = responseText.match(/github\.com\/[^/]+\/[^/]+\/pull\/(\d+)/);
+      if (urlMatch) {
+        prNumber = parseInt(urlMatch[1]);
+      } else {
+        // Fallback: look for "PR #N" but only with reasonable numbers (>0, <10000)
+        const prTextMatch = responseText.match(/(?:created|opened|pushed).*?#(\d+)|pull request #(\d+)/i);
+        if (prTextMatch) {
+          const n = parseInt(prTextMatch[1] || prTextMatch[2]);
+          if (n > 0 && n < 10000) prNumber = n;
+        }
+      }
 
       // Complete execution log with full details
       const implementDetail = [

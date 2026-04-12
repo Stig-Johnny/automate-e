@@ -104,7 +104,9 @@ export function createClaudeCliAgent(character, memory) {
             const costUsd = output.total_cost_usd || 0;
             const resultText = output.result || '';
             const assignment = extractAssignment(resultText);
-            const category = assignment ? 'work' : 'idle';
+            // Stream consumer sets CONDUCTOR_REPO — always "work" when assigned
+            const isStreamWork = !!(process.env.CONDUCTOR_REPO && process.env.CONDUCTOR_ISSUE_NUMBER);
+            const category = (assignment || isStreamWork) ? 'work' : 'idle';
             const completeMsg = `Claude CLI complete: turns=${output.num_turns}, cost=$${costUsd.toFixed(4)}, subtype=${output.subtype}, category=${category}${assignment ? `, assignment=${assignment.repo}#${assignment.issueNumber}` : ''}`;
             console.log(`[Automate-E] ${completeMsg}`);
             publishLog('info', completeMsg, { repo: assignment?.repo, issueNumber: assignment?.issueNumber });
@@ -113,8 +115,8 @@ export function createClaudeCliAgent(character, memory) {
               inputTokens: 0,
               outputTokens: 0,
               costUsd,
-              repo: assignment?.repo,
-              issueNumber: assignment?.issueNumber,
+              repo: assignment?.repo || process.env.CONDUCTOR_REPO,
+              issueNumber: assignment?.issueNumber || (process.env.CONDUCTOR_ISSUE_NUMBER ? parseInt(process.env.CONDUCTOR_ISSUE_NUMBER) : undefined),
               category,
             });
             if (dashboard) dashboard.addLog('info', `Claude CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}, ${category}`);
