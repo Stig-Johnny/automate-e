@@ -101,6 +101,19 @@ export function createClaudeCliAgent(character, memory) {
           try { output = stdout ? JSON.parse(stdout) : null; } catch { output = null; }
 
           if (output) {
+            // Detect auth/rate-limit errors — throw so stream consumer can retry
+            if (output.is_error && output.result) {
+              const errLower = output.result.toLowerCase();
+              if (errLower.includes('invalid api key') || errLower.includes('rate limit') || errLower.includes('overloaded')) {
+                console.error(`[Automate-E] CLI auth/rate error: ${output.result}`);
+                reject(new AgentProviderError('claude-cli', output.result, {
+                  userMessage: `Claude API error: ${output.result}. Will retry.`,
+                  retryable: true,
+                }));
+                return;
+              }
+            }
+
             const costUsd = output.total_cost_usd || 0;
             const resultText = output.result || '';
             const assignment = extractAssignment(resultText);

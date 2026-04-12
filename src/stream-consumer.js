@@ -298,6 +298,14 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
 
       delete process.env.CONDUCTOR_REPO;
       delete process.env.CONDUCTOR_ISSUE_NUMBER;
+
+      // Wait before retry to avoid hammering API on auth/rate errors
+      const isRetryable = err.retryable || err.message?.includes('Invalid API key') || err.message?.includes('rate limit');
+      if (isRetryable) {
+        console.log(`[Stream] Retryable error — waiting 60s before retry`);
+        await new Promise(r => setTimeout(r, 60_000));
+      }
+
       return; // Don't ACK — retry later
     }
 
