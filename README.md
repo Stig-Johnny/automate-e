@@ -107,3 +107,7 @@ MIT License. See LICENSE file.
 ## Contributing
 
 Not accepting contributions at this time. This is maintained by Invotek AS.
+
+## Support
+
+For issues, open a GitHub issue.
