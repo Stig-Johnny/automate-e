@@ -165,8 +165,35 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       const prMatch = responseText.match(/pull\/(\d+)|PR #(\d+)|pr.*#(\d+)/i);
       const prNumber = prMatch ? parseInt(prMatch[1] || prMatch[2] || prMatch[3]) : null;
 
-      // Complete execution log
-      await logStep('implement', 'completed', responseText.slice(0, 200), response?.costUsd, response?.turns);
+      // Complete execution log with full details
+      const implementDetail = [
+        responseText.slice(0, 300),
+        response?.durationMs ? `Duration: ${(response.durationMs/1000).toFixed(1)}s (API: ${(response.durationApiMs/1000).toFixed(1)}s)` : '',
+        response?.inputTokens ? `Tokens: ${response.inputTokens} in / ${response.outputTokens} out / ${response.cacheReadTokens} cache-read / ${response.cacheCreationTokens} cache-write` : '',
+      ].filter(Boolean).join('\n');
+      await logStep('implement', 'completed', implementDetail, response?.costUsd, response?.turns);
+
+      // Send full usage data as log entries
+      if (executionLogId && conductorUrl && response?.modelUsage) {
+        const logEntries = [];
+        for (const [model, usage] of Object.entries(response.modelUsage)) {
+          logEntries.push({
+            timestamp: new Date().toISOString(),
+            level: 'info',
+            message: `Model ${model}: ${usage.inputTokens || 0} in / ${usage.outputTokens || 0} out, cache ${usage.cacheReadInputTokens || 0} read / ${usage.cacheCreationInputTokens || 0} write, $${(usage.costUSD || 0).toFixed(4)}`,
+          });
+        }
+        if (logEntries.length) {
+          try {
+            await fetch(`${conductorUrl}/api/execution-logs/${executionLogId}/logs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(logEntries),
+            });
+          } catch {}
+        }
+      }
+
       if (executionLogId && conductorUrl) {
         try {
           await fetch(`${conductorUrl}/api/execution-logs/${executionLogId}/complete`, {
@@ -176,6 +203,11 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
               status: 'completed',
               totalCostUsd: response?.costUsd || 0,
               totalTurns: response?.turns || 0,
+              totalInputTokens: response?.inputTokens || 0,
+              totalOutputTokens: response?.outputTokens || 0,
+              cacheReadTokens: response?.cacheReadTokens || 0,
+              cacheCreationTokens: response?.cacheCreationTokens || 0,
+              durationApiMs: response?.durationApiMs || 0,
               prNumber,
             }),
           });
