@@ -161,6 +161,10 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
         try { await thread.send(responseText.slice(0, 2000)); } catch {}
       }
 
+      // Extract PR number from response text
+      const prMatch = responseText.match(/pull\/(\d+)|PR #(\d+)|pr.*#(\d+)/i);
+      const prNumber = prMatch ? parseInt(prMatch[1] || prMatch[2] || prMatch[3]) : null;
+
       // Complete execution log
       await logStep('implement', 'completed', responseText.slice(0, 200), response?.costUsd, response?.turns);
       if (executionLogId && conductorUrl) {
@@ -172,6 +176,7 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
               status: 'completed',
               totalCostUsd: response?.costUsd || 0,
               totalTurns: response?.turns || 0,
+              prNumber,
             }),
           });
         } catch {}
