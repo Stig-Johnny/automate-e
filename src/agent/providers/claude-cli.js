@@ -126,6 +126,14 @@ export function createClaudeCliAgent(character, memory) {
               costUsd: costUsd,
               turns: output.num_turns || 0,
               model: character.llm.model,
+              durationMs: output.duration_ms || 0,
+              durationApiMs: output.duration_api_ms || 0,
+              inputTokens: output.usage?.input_tokens || 0,
+              outputTokens: output.usage?.output_tokens || 0,
+              cacheReadTokens: output.usage?.cache_read_input_tokens || 0,
+              cacheCreationTokens: output.usage?.cache_creation_input_tokens || 0,
+              usage: output.usage || null,
+              modelUsage: output.modelUsage || null,
               toString() { return result; },
             });
             return;
