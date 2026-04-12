@@ -109,6 +109,23 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
     process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
 
     try {
+      // Fetch repo learnings from Conductor-E (persistent agent memory)
+      let repoKnowledge = '';
+      if (conductorUrl) {
+        try {
+          const res = await fetch(`${conductorUrl}/api/repo-learnings/${encodeURIComponent(repo)}`);
+          if (res.ok) {
+            const learnings = await res.json();
+            if (learnings.length > 0) {
+              repoKnowledge = '\n\n## What you know about this repo\n' +
+                learnings.map(l => `- **${l.key}**: ${l.value}`).join('\n') +
+                '\n\nUse this knowledge — skip exploration, go straight to the relevant files.';
+              console.log(`[Stream] Loaded ${learnings.length} learnings for ${repo}`);
+            }
+          }
+        } catch {}
+      }
+
       // Check for existing session (for iteration/resumption)
       const sessionKey = `session:${repo}#${issueNumber}`;
       let existingSessionId = null;
@@ -131,7 +148,7 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       toolContext += '\n\n## Runtime installs\nIf you need a tool that is not installed, install it yourself (npm install -g, pip install, apt-get install). You have sudo access for apt-get. Prefer global installs so they persist for the session.';
 
       const taskPrompt = `You have been assigned: ${repo}#${issueNumber} — ${title}
-
+${repoKnowledge}
 ## Issue
 ${assignment.body || title}
 ${toolContext}
@@ -293,6 +310,37 @@ ${toolContext}
         } else {
           console.log(`[Stream] Review-E result for ${repo}#${issueNumber}: ${lowerText.includes('changes') ? 'changes requested' : 'unknown'}`);
         }
+      }
+
+      // Extract and save learnings for future runs
+      if (conductorUrl && responseText && !agentId.includes('review')) {
+        const saveLearning = async (key, value) => {
+          try {
+            await fetch(`${conductorUrl}/api/repo-learnings`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ repo, key, value, agentId }),
+            });
+          } catch {}
+        };
+
+        // Extract from response text
+        const lower = responseText.toLowerCase();
+        if (lower.includes('xcodegen') || lower.includes('project.yml')) await saveLearning('build-system', 'XcodeGen (project.yml)');
+        else if (lower.includes('package.json')) await saveLearning('build-system', 'Node.js (package.json)');
+        else if (lower.includes('.csproj')) await saveLearning('build-system', '.NET (csproj)');
+
+        if (lower.includes('swiftui')) await saveLearning('framework', 'SwiftUI');
+        if (lower.includes('swiftdata')) await saveLearning('persistence', 'SwiftData');
+        if (lower.includes('firebase') || lower.includes('firestore')) await saveLearning('backend', 'Firebase/Firestore');
+        if (lower.includes('revenuecat')) await saveLearning('payments', 'RevenueCat');
+
+        // Save what files were touched
+        const branchMatch = responseText.match(/feature\/issue-\d+-[\w-]+/);
+        if (branchMatch) await saveLearning('last-branch', branchMatch[0]);
+        if (prNumber) await saveLearning('last-pr', `#${prNumber} (issue #${issueNumber})`);
+
+        console.log(`[Stream] Saved learnings for ${repo}`);
       }
 
     } catch (err) {
