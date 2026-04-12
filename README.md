@@ -103,3 +103,7 @@ examples/example-e/ # Example: simple demo agent
 ## License
 
 MIT License. See LICENSE file.
+
+## Contributing
+
+Not accepting contributions at this time. This is maintained by Invotek AS.
