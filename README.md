@@ -102,4 +102,4 @@ examples/example-e/ # Example: simple demo agent
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT License. See LICENSE file.
