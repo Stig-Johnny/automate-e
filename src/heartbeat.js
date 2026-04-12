@@ -17,6 +17,10 @@ export function startHeartbeat(character, options = {}) {
   const config = character.heartbeat;
   if (!config?.url || !config?.agentId) return null;
 
+  // Unique instance ID: agentId + short pod hostname (e.g. dev-e-node/abc12)
+  const hostname = (process.env.HOSTNAME || require('os').hostname() || '').slice(-5);
+  const instanceId = hostname ? `${config.agentId}/${hostname}` : config.agentId;
+
   const intervalMs = (config.intervalSeconds || 60) * 1000;
   let currentStatus = 'idle';
   let currentIssue = null;
@@ -27,7 +31,7 @@ export function startHeartbeat(character, options = {}) {
       const snapshot = options.getSnapshot ? await options.getSnapshot() : {};
       const body = {
         type: 'HEARTBEAT',
-        agentId: config.agentId,
+        agentId: instanceId,
         status: currentStatus,
         currentIssue,
         currentRepo,
@@ -55,7 +59,7 @@ export function startHeartbeat(character, options = {}) {
   send();
   const timer = setInterval(send, intervalMs);
 
-  console.log(`[Heartbeat] ${config.agentId} → ${config.url} every ${config.intervalSeconds}s`);
+  console.log(`[Heartbeat] ${instanceId} → ${config.url} every ${config.intervalSeconds}s`);
 
   return {
     setStatus(status, issue = null, repo = null) {
