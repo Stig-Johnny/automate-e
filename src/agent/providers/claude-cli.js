@@ -120,7 +120,14 @@ export function createClaudeCliAgent(character, memory) {
             if (dashboard) dashboard.addLog('info', `Claude CLI: ${output.num_turns} turn(s), $${costUsd.toFixed(4)}, ${category}`);
             // Return result with session_id for resumption
             const result = resultText || `CLI ${output.subtype || 'done'}`;
-            resolve({ text: result, sessionId: output.session_id || null, toString() { return result; } });
+            resolve({
+              text: result,
+              sessionId: output.session_id || null,
+              costUsd: costUsd,
+              turns: output.num_turns || 0,
+              model: character.llm.model,
+              toString() { return result; },
+            });
             return;
           }
 
