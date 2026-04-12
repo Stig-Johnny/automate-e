@@ -110,4 +110,4 @@ Not accepting contributions at this time. This is maintained by Invotek AS.
 
 ## Support
 
-For issues, open a GitHub issue.
+For help, [open a GitHub issue](https://github.com/Stig-Johnny/automate-e/issues/new).
