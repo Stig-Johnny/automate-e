@@ -275,12 +275,7 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
             });
             console.log(`[Stream] Review result: ${eventType} for ${repo}#${issueNumber}`);
 
-            // Set Valkey dedup key so webhook handler skips duplicate
-            if (eventType === 'REVIEW_PASSED') {
-              try { await redis.set(`review-passed:${repo}#${issueNumber}`, '1', 'EX', 3600); } catch {}
-            }
-
-            // If approved, also trigger merge
+            // If approved, trigger merge (MERGED dedup is in Valkey, REVIEW_PASSED is not deduped)
             if (eventType === 'REVIEW_PASSED') {
               await fetch(`${conductorUrl}/api/merge`, {
                 method: 'POST',
