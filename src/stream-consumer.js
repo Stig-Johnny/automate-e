@@ -70,6 +70,40 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
     // Clear KEDA signal list (tells KEDA we're processing the work)
     try { await redis.del(`signal:${agentId}`); } catch {}
 
+    // Create execution log in Conductor-E
+    const conductorUrl = process.env.CONDUCTOR_BASE_URL || process.env.CONDUCTOR_URL;
+    let executionLogId = null;
+    if (conductorUrl) {
+      try {
+        const res = await fetch(`${conductorUrl}/api/execution-logs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repo, issueNumber: parseInt(issueNumber), agentId,
+            status: 'running', model: character.llm?.model || 'unknown',
+            steps: [{ type: 'assigned', status: 'completed', detail: `Assigned to ${agentId}` }],
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          executionLogId = data.id;
+          console.log(`[Stream] Execution log created: ${executionLogId}`);
+        }
+      } catch (err) { console.warn(`[Stream] Failed to create execution log: ${err.message}`); }
+    }
+
+    // Helper to append step to execution log
+    const logStep = async (type, status, detail, costUsd, turns) => {
+      if (!executionLogId || !conductorUrl) return;
+      try {
+        await fetch(`${conductorUrl}/api/execution-logs/${executionLogId}/steps`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, status, detail, costUsd, turns }),
+        });
+      } catch {}
+    };
+
     // Run the agent — always, even if Discord thread failed
     process.env.CONDUCTOR_REPO = repo;
     process.env.CONDUCTOR_ISSUE_NUMBER = issueNumber;
@@ -126,8 +160,37 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       if (responseText.trim().length > 20 && thread) {
         try { await thread.send(responseText.slice(0, 2000)); } catch {}
       }
+
+      // Complete execution log
+      await logStep('implement', 'completed', responseText.slice(0, 200), response?.costUsd, response?.turns);
+      if (executionLogId && conductorUrl) {
+        try {
+          await fetch(`${conductorUrl}/api/execution-logs/${executionLogId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: 'completed',
+              totalCostUsd: response?.costUsd || 0,
+              totalTurns: response?.turns || 0,
+            }),
+          });
+        } catch {}
+      }
     } catch (err) {
       console.error(`[Stream] Agent error on ${repo}#${issueNumber}: ${err.message}`);
+
+      // Log failure
+      await logStep('implement', 'failed', err.message);
+      if (executionLogId && conductorUrl) {
+        try {
+          await fetch(`${conductorUrl}/api/execution-logs/${executionLogId}/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'failed' }),
+          });
+        } catch {}
+      }
+
       delete process.env.CONDUCTOR_REPO;
       delete process.env.CONDUCTOR_ISSUE_NUMBER;
       return; // Don't ACK — retry later
