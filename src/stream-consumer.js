@@ -130,15 +130,39 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       // Always allow runtime installs
       toolContext += '\n\n## Runtime installs\nIf you need a tool that is not installed, install it yourself (npm install -g, pip install, apt-get install). You have sudo access for apt-get. Prefer global installs so they persist for the session.';
 
+      const taskPrompt = `You have been assigned: ${repo}#${issueNumber} — ${title}
+
+## Issue
+${assignment.body || title}
+${toolContext}
+
+## MANDATORY steps — you MUST complete ALL of these:
+
+1. Clone the repo: git clone https://github.com/${repo}.git && cd ${repo.split('/')[1]}
+2. Create feature branch: git checkout -b feature/issue-${issueNumber}-$(echo "${title}" | tr ' ' '-' | tr '[:upper:]' '[:lower:]' | head -c 30)
+3. Read the issue on GitHub for full context
+4. Implement the changes
+5. Run tests if available: check .rig-agent.yaml for testCommand
+6. Commit with conventional commits (feat:, fix:, docs:, etc.)
+7. Push: git push -u origin HEAD
+8. Create PR: gh pr create --title "${title}" --body "Closes #${issueNumber}" --base main
+
+## CRITICAL RULES:
+- You are NOT done until the PR is created. If you stop before creating a PR, you have FAILED.
+- Do NOT wait for Discord threads, webhooks, or external events.
+- Do NOT ask questions — make reasonable decisions and implement.
+- If git push fails, check credentials and retry.
+- If gh pr create fails, check the error and fix it.`;
+
       const prompt = isIteration
-        ? `Continue working on ${repo}#${issueNumber}.\n\n${assignment.body || title}${toolContext}`
-        : `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}${toolContext}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+        ? `Continue working on ${repo}#${issueNumber}. Address the feedback and push to the existing branch.\n\n${assignment.body || title}${toolContext}`
+        : taskPrompt;
+
+      const freshPrompt = taskPrompt;
 
       if (isIteration) {
         console.log(`[Stream] Resuming session ${existingSessionId} for ${repo}#${issueNumber}`);
       }
-
-      const freshPrompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}${toolContext}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
 
       let response;
       try {

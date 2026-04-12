@@ -4,6 +4,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { reportTokenUsage } from '../../conductor.js';
 import { publishLog } from '../../agent-log.js';
+import { getGitHubToken } from '../../github-token.js';
 import { buildCliPrompt, buildSystemPrompt, buildSystemWithFacts } from '../shared.js';
 import { AgentProviderError, toAgentProviderError } from '../provider-error.js';
 
@@ -54,6 +55,12 @@ export function createClaudeCliAgent(character, memory) {
         writeFileSync(mcpConfigPath, JSON.stringify({ mcpServers: character.mcpServers }));
         args.push('--mcp-config', mcpConfigPath);
       }
+
+      // Refresh GitHub token before each CLI run (tokens expire after 1hr)
+      try {
+        const freshToken = await getGitHubToken();
+        if (freshToken) process.env.GITHUB_PERSONAL_ACCESS_TOKEN = freshToken;
+      } catch {}
 
       const cwd = character.workDir || undefined;
       if (cwd) console.log(`[Automate-E] Claude CLI cwd: ${cwd}`);
