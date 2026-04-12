@@ -95,6 +95,7 @@ jobs:
   update-gitops:
     needs: build-stacks
     if: github.ref == 'refs/heads/main'
+    continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
