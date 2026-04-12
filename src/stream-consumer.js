@@ -138,6 +138,8 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
         console.log(`[Stream] Resuming session ${existingSessionId} for ${repo}#${issueNumber}`);
       }
 
+      const freshPrompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}${toolContext}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
+
       let response;
       try {
         response = await agent.process(prompt, {
@@ -149,23 +151,29 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
           sessionId: existingSessionId,
         }, dashboard);
       } catch (retryErr) {
-        // If resume failed, clear session and retry fresh
+        // Clear stale session
         if (existingSessionId) {
-          console.log(`[Stream] Resume failed for ${repo}#${issueNumber} — retrying without session`);
           try { await redis.del(sessionKey); } catch {}
-
-          const freshPrompt = `You have been assigned: ${repo}#${issueNumber} — ${title}\n\n${assignment.body || ''}${toolContext}\n\nImplement this task. Read the issue on GitHub for full context. Create a feature branch, implement the fix, commit, push, and create a PR with "Closes #${issueNumber}" in the body.`;
-          response = await agent.process(freshPrompt, {
-            userId: 'stream-consumer',
-            userName: character.name,
-            channelId: channelId || 'stream',
-            threadId: `stream-${repo}-${issueNumber}`,
-            attachments: [],
-            sessionId: null, // no resume
-          }, dashboard);
-        } else {
-          throw retryErr; // no session to clear, propagate error
         }
+
+        // Wait on retryable errors (auth, rate limit)
+        const isRetryable = retryErr.retryable || retryErr.message?.includes('Invalid API key') || retryErr.message?.includes('unavailable');
+        if (isRetryable) {
+          console.log(`[Stream] Auth/rate error on ${repo}#${issueNumber} — waiting 60s`);
+          await new Promise(r => setTimeout(r, 60_000));
+        } else {
+          console.log(`[Stream] Error on ${repo}#${issueNumber}: ${retryErr.message} — retrying fresh`);
+        }
+
+        // Retry without session
+        response = await agent.process(freshPrompt, {
+          userId: 'stream-consumer',
+          userName: character.name,
+          channelId: channelId || 'stream',
+          threadId: `stream-${repo}-${issueNumber}`,
+          attachments: [],
+          sessionId: null,
+        }, dashboard);
       }
 
       // Save session ID for future iterations
