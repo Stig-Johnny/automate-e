@@ -47,11 +47,6 @@ spec:
                   name: {{ include "automate-e.secretName" . }}
                   key: slack-app-token
             {{- end }}
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "automate-e.secretName" . }}
-                  key: anthropic-api-key
             - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -213,11 +208,6 @@ spec:
                 secretKeyRef:
                   name: {{ include "automate-e.secretName" . }}
                   key: discord-bot-token
-            - name: ANTHROPIC_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "automate-e.secretName" . }}
-                  key: anthropic-api-key
             - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -297,7 +287,7 @@ spec:
               imagePullPolicy: {{ .Values.image.pullPolicy }}
               command: ["node", "src/run-once.js"]
               env:
-                - name: ANTHROPIC_API_KEY
+                - name: CLAUDE_CODE_OAUTH_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: {{ include "automate-e.secretName" . }}
