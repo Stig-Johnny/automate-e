@@ -81,6 +81,46 @@ Automate-E supports multiple LLM backends. The active provider is determined at 
 
 Configure the primary provider in `character.json` via `llm.provider`. Additional fallback providers are listed under `llm.providers`. The chain is built at startup (`src/agent/provider-chain.js`) and only one provider runs at a time.
 
+### Switching Providers
+
+You can switch the active LLM provider at any time without restarting the agent — either via a live Discord command or via a GitOps config change.
+
+#### Discord commands (live, immediate)
+
+Send a message in any channel the agent is listening to:
+
+| Command | Switches to |
+|---|---|
+| `use:claude` | `claude-cli` (Claude Code CLI) |
+| `use:codex` | `codex-cli` (OpenAI Codex CLI) |
+| `use:anthropic` | `anthropic` (Anthropic SDK) |
+| `use:openai` | `openai-api` (OpenAI API) |
+
+The agent replies with the newly active provider and the full list of configured providers. The selection is persisted to a local state file so it survives restarts.
+
+> **Note:** the command only accepts providers that are already declared in `character.json` under `llm.provider` or as keys in `llm.providers`. Sending `use:codex` when `codex-cli` is not configured returns an error message.
+
+#### GitOps / HelmRelease (declarative, permanent)
+
+Update `character.llm.provider` in your HelmRelease values file and commit:
+
+```yaml
+# my-agent-values.yaml
+character:
+  llm:
+    provider: codex-cli          # ← change this
+    providers:
+      codex-cli:
+        model: o3
+        authMode: device-auth
+      claude-cli:
+        model: claude-sonnet-4-5-20251022
+      anthropic:
+        model: claude-haiku-4-5-20251001
+```
+
+ArgoCD (or `helm upgrade`) will roll out a new pod with the updated default. Any runtime override written by a `use:` command takes precedence over the chart default until the state file is cleared.
+
 ### character.json Config
 
 Everything about an agent is declared in a single JSON file — no code needed:
