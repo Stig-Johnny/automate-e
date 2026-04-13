@@ -67,8 +67,8 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       }
     }
 
-    // Clear KEDA signal list (tells KEDA we're processing the work)
-    try { await redis.del(`signal:${agentId}`); } catch {}
+    // Pop one signal from KEDA list (don't delete entire list — other assignments may be pending)
+    try { await redis.lpop(`signal:${agentId}`); } catch {}
 
     // Create execution log in Conductor-E
     const conductorUrl = process.env.CONDUCTOR_BASE_URL || process.env.CONDUCTOR_URL;
