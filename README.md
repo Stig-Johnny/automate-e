@@ -109,15 +109,12 @@ Update `character.llm.provider` in your HelmRelease values file and commit:
 character:
   llm:
     provider: codex-cli          # ← change this
-    fallbackProviders:
-      - claude-cli
-      - anthropic
     providers:
       codex-cli:
-        model: gpt-5.4
+        model: o3
         authMode: device-auth
       claude-cli:
-        model: claude-sonnet-4-5
+        model: claude-sonnet-4-5-20251022
       anthropic:
         model: claude-haiku-4-5-20251001
 ```
