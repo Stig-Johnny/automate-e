@@ -107,3 +107,7 @@ MIT License. See LICENSE file.
 ## Contributing
 
 Not accepting contributions at this time. This is maintained by Invotek AS.
+
+## Support
+
+For help, [open a GitHub issue](https://github.com/Stig-Johnny/automate-e/issues/new).
