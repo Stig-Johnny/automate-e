@@ -98,7 +98,7 @@ Send a message in any channel the agent is listening to:
 
 The agent replies with the newly active provider and the full list of configured providers. The selection is persisted to a local state file so it survives restarts.
 
-> **Note:** the command only accepts providers that are already declared in `character.json` under `llm.provider` or `llm.fallbackProviders`. Sending `use:codex` when `codex-cli` is not configured returns an error message.
+> **Note:** the command only accepts providers that are already declared in `character.json` under `llm.provider` or as keys in `llm.providers`. Sending `use:codex` when `codex-cli` is not configured returns an error message.
 
 #### GitOps / HelmRelease (declarative, permanent)
 
