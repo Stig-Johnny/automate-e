@@ -16,64 +16,35 @@ import {
   startDeviceAuthCooldownForTest,
 } from './agent/providers/codex-auth.js';
 
-test('resolveAgentProvider defaults to anthropic', () => {
-  delete process.env.CODEX_CLI_MODE;
-  delete process.env.CLAUDE_CLI_MODE;
-  delete process.env.ANTHROPIC_API_KEY;
-
-  const provider = resolveAgentProvider({ llm: { provider: 'anthropic' } });
-  assert.equal(provider, 'anthropic');
-});
-
-test('resolveAgentProvider uses claude-cli for OAuth subscription tokens', () => {
-  delete process.env.CODEX_CLI_MODE;
-  delete process.env.CLAUDE_CLI_MODE;
-  process.env.ANTHROPIC_API_KEY = 'sk-ant-oat-example';
-
-  const provider = resolveAgentProvider({ llm: { provider: 'anthropic' } });
+test('resolveAgentProvider returns configured provider', () => {
+  const provider = resolveAgentProvider({ llm: { provider: 'claude-cli' } });
   assert.equal(provider, 'claude-cli');
-
-  delete process.env.ANTHROPIC_API_KEY;
 });
 
-test('resolveAgentProvider respects explicit codex-cli provider', () => {
-  delete process.env.CODEX_CLI_MODE;
-  delete process.env.CLAUDE_CLI_MODE;
-  delete process.env.ANTHROPIC_API_KEY;
-
-  const provider = resolveAgentProvider({ llm: { provider: 'codex-cli' } });
-  assert.equal(provider, 'codex-cli');
+test('resolveAgentProvider throws when no provider configured', () => {
+  assert.throws(() => resolveAgentProvider({ llm: {} }), /No LLM provider configured/);
+  assert.throws(() => resolveAgentProvider({}), /No LLM provider configured/);
 });
 
-test('resolveAgentProvider respects explicit openai-api provider', () => {
-  delete process.env.CODEX_CLI_MODE;
-  delete process.env.CLAUDE_CLI_MODE;
-  delete process.env.ANTHROPIC_API_KEY;
-
-  const provider = resolveAgentProvider({ llm: { provider: 'openai-api' } });
-  assert.equal(provider, 'openai-api');
+test('resolveAgentProvider returns any valid provider string', () => {
+  assert.equal(resolveAgentProvider({ llm: { provider: 'codex-cli' } }), 'codex-cli');
+  assert.equal(resolveAgentProvider({ llm: { provider: 'openai-api' } }), 'openai-api');
+  assert.equal(resolveAgentProvider({ llm: { provider: 'anthropic' } }), 'anthropic');
 });
 
-test('buildProviderChain keeps primary provider first and appends fallbacks', () => {
+test('buildProviderChain returns single-element array', () => {
+  const chain = buildProviderChain({ llm: { provider: 'claude-cli' } });
+  assert.deepEqual(chain, ['claude-cli']);
+});
+
+test('buildProviderChain ignores fallbackProviders', () => {
   const chain = buildProviderChain({
     llm: {
-      provider: 'codex-cli',
-      fallbackProviders: ['claude-cli', 'openai-api', 'anthropic'],
+      provider: 'claude-cli',
+      fallbackProviders: ['codex-cli', 'openai-api'],
     },
   });
-
-  assert.deepEqual(chain, ['codex-cli', 'claude-cli', 'openai-api', 'anthropic']);
-});
-
-test('buildProviderChain deduplicates duplicate providers', () => {
-  const chain = buildProviderChain({
-    llm: {
-      provider: 'codex-cli',
-      fallbackProviders: ['codex-cli', 'claude-cli', 'claude-cli'],
-    },
-  });
-
-  assert.deepEqual(chain, ['codex-cli', 'claude-cli']);
+  assert.deepEqual(chain, ['claude-cli']);
 });
 
 test('resolveCharacterForProvider applies provider-specific llm overrides', () => {
@@ -96,7 +67,7 @@ test('resolveCharacterForProvider applies provider-specific llm overrides', () =
   assert.equal(character.llm.timeoutMs, 2000);
 });
 
-test('provider state defaults to the configured primary provider', () => {
+test('provider state defaults to the configured provider', () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
   const previousHome = process.env.HOME;
   const previousCodexHome = process.env.CODEX_HOME;
@@ -104,67 +75,9 @@ test('provider state defaults to the configured primary provider', () => {
   delete process.env.CODEX_HOME;
 
   try {
-    const character = {
-      llm: {
-        provider: 'codex-cli',
-        fallbackProviders: ['claude-cli', 'openai-api'],
-      },
-    };
-
-    assert.equal(getActiveProvider(character), 'codex-cli');
-    assert.match(describeProviderState(character), /Active provider: codex-cli/);
-  } finally {
-    process.env.HOME = previousHome;
-    process.env.CODEX_HOME = previousCodexHome;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test('provider state can be switched to another configured provider', () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
-  const previousHome = process.env.HOME;
-  const previousCodexHome = process.env.CODEX_HOME;
-  process.env.HOME = tempDir;
-  delete process.env.CODEX_HOME;
-
-  try {
-    const character = {
-      llm: {
-        provider: 'codex-cli',
-        fallbackProviders: ['claude-cli', 'openai-api'],
-      },
-    };
-
-    assert.equal(setActiveProvider(character, 'claude-cli'), 'claude-cli');
+    const character = { llm: { provider: 'claude-cli' } };
     assert.equal(getActiveProvider(character), 'claude-cli');
-  } finally {
-    process.env.HOME = previousHome;
-    process.env.CODEX_HOME = previousCodexHome;
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  }
-});
-
-test('provider state accepts human-friendly provider aliases', () => {
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'automate-e-provider-'));
-  const previousHome = process.env.HOME;
-  const previousCodexHome = process.env.CODEX_HOME;
-  process.env.HOME = tempDir;
-  delete process.env.CODEX_HOME;
-
-  try {
-    const character = {
-      llm: {
-        provider: 'codex-cli',
-        fallbackProviders: ['claude-cli', 'openai-api'],
-      },
-    };
-
-    assert.equal(setActiveProvider(character, 'claude'), 'claude-cli');
-    assert.equal(getActiveProvider(character), 'claude-cli');
-    assert.equal(setActiveProvider(character, 'openai'), 'openai-api');
-    assert.equal(getActiveProvider(character), 'openai-api');
-    assert.equal(setActiveProvider(character, 'codex'), 'codex-cli');
-    assert.equal(getActiveProvider(character), 'codex-cli');
+    assert.match(describeProviderState(character), /Active provider: claude-cli/);
   } finally {
     process.env.HOME = previousHome;
     process.env.CODEX_HOME = previousCodexHome;
