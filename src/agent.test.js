@@ -32,19 +32,23 @@ test('resolveAgentProvider returns any valid provider string', () => {
   assert.equal(resolveAgentProvider({ llm: { provider: 'anthropic' } }), 'anthropic');
 });
 
-test('buildProviderChain returns single-element array', () => {
+test('buildProviderChain returns primary when no extra providers configured', () => {
   const chain = buildProviderChain({ llm: { provider: 'claude-cli' } });
   assert.deepEqual(chain, ['claude-cli']);
 });
 
-test('buildProviderChain ignores fallbackProviders', () => {
+test('buildProviderChain includes all configured providers from providers map', () => {
   const chain = buildProviderChain({
     llm: {
       provider: 'claude-cli',
-      fallbackProviders: ['codex-cli', 'openai-api'],
+      providers: {
+        'claude-cli': { model: 'sonnet' },
+        'codex-cli': { model: 'gpt-5.4' },
+        'openai-api': { model: 'gpt-4o' },
+      },
     },
   });
-  assert.deepEqual(chain, ['claude-cli']);
+  assert.deepEqual(chain, ['claude-cli', 'codex-cli', 'openai-api']);
 });
 
 test('resolveCharacterForProvider applies provider-specific llm overrides', () => {
