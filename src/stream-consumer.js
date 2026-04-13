@@ -113,7 +113,7 @@ export function createStreamConsumer(character, agent, dashboard, discordClient)
       let repoKnowledge = '';
       if (conductorUrl) {
         try {
-          const res = await fetch(`${conductorUrl}/api/repo-learnings/${encodeURIComponent(repo)}`);
+          const res = await fetch(`${conductorUrl}/api/repo-learnings?repo=${encodeURIComponent(repo)}`);
           if (res.ok) {
             const learnings = await res.json();
             if (learnings.length > 0) {
